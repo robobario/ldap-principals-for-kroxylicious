@@ -3,6 +3,7 @@ package io.github.robobario.ldapprincipals;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -19,11 +20,13 @@ import io.kroxylicious.proxy.authentication.User;
 final class LdapSaslSubjectBuilder implements SaslSubjectBuilder {
 
     private final RoleLookup roleLookup;
+    private final RoleNameExtractor roleNameExtractor;
     private final Executor executor;
     private final Duration lookupTimeout;
 
-    LdapSaslSubjectBuilder(RoleLookup roleLookup, Executor executor, Duration lookupTimeout) {
+    LdapSaslSubjectBuilder(RoleLookup roleLookup, RoleNameExtractor roleNameExtractor, Executor executor, Duration lookupTimeout) {
         this.roleLookup = roleLookup;
+        this.roleNameExtractor = roleNameExtractor;
         this.executor = executor;
         this.lookupTimeout = lookupTimeout;
     }
@@ -43,10 +46,13 @@ final class LdapSaslSubjectBuilder implements SaslSubjectBuilder {
                 });
     }
 
-    private static Subject toSubject(String authorizationId, List<String> rawRoles) {
+    private Subject toSubject(String authorizationId, List<String> rawRoles) {
         Set<Principal> principals = new HashSet<>();
         principals.add(new User(authorizationId));
-        rawRoles.forEach(rawRole -> principals.add(new Role(rawRole)));
+        rawRoles.stream()
+                .map(roleNameExtractor::extract)
+                .flatMap(Optional::stream)
+                .forEach(roleName -> principals.add(new Role(roleName)));
         return new Subject(principals);
     }
 
