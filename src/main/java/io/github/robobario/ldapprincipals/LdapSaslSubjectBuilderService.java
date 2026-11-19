@@ -26,6 +26,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
     private RoleNameExtractor roleNameExtractor;
     private ExecutorService executor;
     private Duration lookupTimeout;
+    private OnLookupFailure onLookupFailure;
 
     @Override
     public void initialize(Config config) {
@@ -33,6 +34,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
         this.roleNameExtractor = new RoleNameExtractor(config.roleNameExtractionPattern());
         this.executor = Executors.newFixedThreadPool(config.executorPoolSize(), namedThreadFactory());
         this.lookupTimeout = config.lookupTimeout();
+        this.onLookupFailure = config.onLookupFailure();
     }
 
     private static ThreadFactory namedThreadFactory() {
@@ -46,7 +48,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
 
     @Override
     public SaslSubjectBuilder build() {
-        return new LdapSaslSubjectBuilder(roleLookup, roleNameExtractor, executor, lookupTimeout);
+        return new LdapSaslSubjectBuilder(roleLookup, roleNameExtractor, executor, lookupTimeout, onLookupFailure);
     }
 
     @Override
@@ -67,6 +69,9 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
      * @param roleNameExtractionPattern regex matched against each raw LDAP value (typically a group DN) to derive a role
      *        name, e.g. {@code cn=([^,]+),.*}. Must contain at least one capturing group; values that don't match the
      *        pattern contribute no role.
+     * @param onLookupFailure behavior on LDAP lookup failure (connection failure, timeout, malformed response).
+     *        Defaults to {@link OnLookupFailure#FAIL}. See {@link OnLookupFailure#ANONYMOUS_ROLES} for the
+     *        privilege-escalation risk of the permissive option.
      * @param lookupTimeout maximum time to wait for a lookup to complete.
      * @param executorPoolSize size of the dedicated executor LDAP operations run on.
      */
@@ -78,6 +83,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
             String searchFilterTemplate,
             String memberOfAttribute,
             String roleNameExtractionPattern,
+            OnLookupFailure onLookupFailure,
             Duration lookupTimeout,
             int executorPoolSize) {
 
@@ -100,6 +106,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
             }
             memberOfAttribute = memberOfAttribute == null || memberOfAttribute.isBlank() ? DEFAULT_MEMBER_OF_ATTRIBUTE : memberOfAttribute;
             validateRoleNameExtractionPattern(roleNameExtractionPattern);
+            onLookupFailure = onLookupFailure == null ? OnLookupFailure.FAIL : onLookupFailure;
             Objects.requireNonNull(lookupTimeout, "lookupTimeout must not be null");
             if (!lookupTimeout.isPositive()) {
                 throw new IllegalArgumentException("lookupTimeout must be positive");
@@ -151,7 +158,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
         public String toString() {
             return "Config[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
                     + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
-                    + ", roleNameExtractionPattern=" + roleNameExtractionPattern
+                    + ", roleNameExtractionPattern=" + roleNameExtractionPattern + ", onLookupFailure=" + onLookupFailure
                     + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + "]";
         }
     }

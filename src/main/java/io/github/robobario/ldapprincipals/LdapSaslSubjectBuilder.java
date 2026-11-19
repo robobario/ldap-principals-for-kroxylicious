@@ -23,12 +23,15 @@ final class LdapSaslSubjectBuilder implements SaslSubjectBuilder {
     private final RoleNameExtractor roleNameExtractor;
     private final Executor executor;
     private final Duration lookupTimeout;
+    private final OnLookupFailure onLookupFailure;
 
-    LdapSaslSubjectBuilder(RoleLookup roleLookup, RoleNameExtractor roleNameExtractor, Executor executor, Duration lookupTimeout) {
+    LdapSaslSubjectBuilder(RoleLookup roleLookup, RoleNameExtractor roleNameExtractor, Executor executor, Duration lookupTimeout,
+                           OnLookupFailure onLookupFailure) {
         this.roleLookup = roleLookup;
         this.roleNameExtractor = roleNameExtractor;
         this.executor = executor;
         this.lookupTimeout = lookupTimeout;
+        this.onLookupFailure = onLookupFailure;
     }
 
     @Override
@@ -39,6 +42,9 @@ final class LdapSaslSubjectBuilder implements SaslSubjectBuilder {
                 .orTimeout(lookupTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .handle((rawRoles, failure) -> {
                     if (failure != null) {
+                        if (onLookupFailure == OnLookupFailure.ANONYMOUS_ROLES) {
+                            return new Subject(new User(authorizationId));
+                        }
                         throw new SubjectBuildingException(
                                 "LDAP role lookup failed for identity '" + authorizationId + "'", unwrap(failure));
                     }

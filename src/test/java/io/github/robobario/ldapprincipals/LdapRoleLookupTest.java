@@ -95,6 +95,7 @@ class LdapRoleLookupTest {
                 "(uid={0})",
                 "memberOf",
                 "cn=([^,]+),.*",
+                OnLookupFailure.FAIL,
                 Duration.ofSeconds(5),
                 2));
     }
