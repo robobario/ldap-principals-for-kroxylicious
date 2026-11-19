@@ -5,13 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.robobario</groupId>
-    <artifactId>template-library</artifactId>
+    <artifactId>ldap-principals-for-kroxylicious</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>template-library</name>
-    <description>TODO: one-line description of the library</description>
-    <url>https://github.com/robobario/template-library</url>
+    <name>ldap-principals-for-kroxylicious</name>
+    <description>augment your kroxylicious Subject with LDAP Principals like Role</description>
+    <url>https://github.com/robobario/ldap-principals-for-kroxylicious</url>
     <inceptionYear>2026</inceptionYear>
 
     <licenses>
@@ -25,15 +25,15 @@
     <developers>
         <developer>
             <id>robobario</id>
-            <name>TODO: your name</name>
+            <name>Robert Young</name>
             <url>https://github.com/robobario</url>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git@github.com:robobario/template-library.git</connection>
-        <developerConnection>scm:git:git@github.com:robobario/template-library.git</developerConnection>
-        <url>https://github.com/robobario/template-library</url>
+        <connection>scm:git:git@github.com:robobario/ldap-principals-for-kroxylicious.git</connection>
+        <developerConnection>scm:git:git@github.com:robobario/ldap-principals-for-kroxylicious.git</developerConnection>
+        <url>https://github.com/robobario/ldap-principals-for-kroxylicious</url>
         <tag>HEAD</tag>
     </scm>
 
