@@ -1,13 +1,17 @@
 package io.github.robobario.ldapprincipals.it;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.errors.IllegalSaslStateException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +23,9 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
 import io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService;
+import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.filter.sasl.inspection.SaslInspection;
+import io.kroxylicious.proxy.config.ConfigurationBuilder;
 import io.kroxylicious.testing.integration.config.NamedFilterDefinitionBuilder;
 import io.kroxylicious.testing.integration.tester.KroxyliciousConfigUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -34,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Proves {@link LdapSaslSubjectBuilderService} end to end: a SASL PLAIN authenticated client's
  * authorization id is looked up against a real (in-memory) LDAP directory's {@code memberOf}
  * attribute, and the resulting roles are observable in the {@code Subject} built for the connection.
+ * Also covers the {@code onLookupFailure} policy against an unreachable directory and a hung one.
  */
 @ExtendWith(KafkaClusterExtension.class)
 class LdapMemberOfLookupIT {
@@ -91,7 +98,7 @@ class LdapMemberOfLookupIT {
     @Test
     void enrichesSubjectWithRolesFromMemberOf(@SaslMechanism(value = "PLAIN", principals = {
             @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
-        String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "alice", "alice-secret");
+        String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "alice", "alice-secret", memberOfConfig(OnLookupFailure.FAIL));
 
         assertThat(encodedSubject.split("\\|"))
                 .containsExactlyInAnyOrder("User[name=alice]", "Role[name=kafka-admins]");
@@ -100,23 +107,108 @@ class LdapMemberOfLookupIT {
     @Test
     void producesAUserOnlySubjectWhenNoRolesFound(@SaslMechanism(value = "PLAIN", principals = {
             @SaslMechanism.Principal(user = "bob", password = "bob-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
-        String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "bob", "bob-secret");
+        String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "bob", "bob-secret", memberOfConfig(OnLookupFailure.FAIL));
 
         assertThat(encodedSubject).isEqualTo("User[name=bob]");
     }
 
-    private String produceAndCaptureEncodedSubject(KafkaCluster cluster, Topic topic, String username, String password) throws Exception {
-        var subjectBuilderConfig = new LdapSaslSubjectBuilderService.Config(
-                List.of("ldap://localhost:" + directoryServer.getListenPort()),
-                ADMIN_DN,
-                ADMIN_PASSWORD,
-                PEOPLE_DN,
-                "(uid={0})",
-                "memberOf",
-                "cn=([^,]+),.*",
-                Duration.ofSeconds(5),
-                2);
+    @Test
+    void failsAuthenticationWhenLdapIsUnreachable(@SaslMechanism(value = "PLAIN", principals = {
+            @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) {
+        assertAuthenticationFails(cluster, topic, "alice", "alice-secret", unreachableConfig(OnLookupFailure.FAIL));
+    }
 
+    @Test
+    void buildsUserOnlySubjectWhenLdapIsUnreachableAndPolicyIsAnonymousRoles(@SaslMechanism(value = "PLAIN", principals = {
+            @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
+        String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "alice", "alice-secret",
+                unreachableConfig(OnLookupFailure.ANONYMOUS_ROLES));
+
+        assertThat(encodedSubject).isEqualTo("User[name=alice]");
+    }
+
+    @Test
+    void failsAuthenticationWhenLookupTimesOut(@SaslMechanism(value = "PLAIN", principals = {
+            @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
+        try (var blackhole = startBlackhole()) {
+            assertAuthenticationFails(cluster, topic, "alice", "alice-secret", hungConfig(blackhole, OnLookupFailure.FAIL));
+        }
+    }
+
+    @Test
+    void buildsUserOnlySubjectWhenLookupTimesOutAndPolicyIsAnonymousRoles(@SaslMechanism(value = "PLAIN", principals = {
+            @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
+        try (var blackhole = startBlackhole()) {
+            String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "alice", "alice-secret",
+                    hungConfig(blackhole, OnLookupFailure.ANONYMOUS_ROLES));
+
+            assertThat(encodedSubject).isEqualTo("User[name=alice]");
+        }
+    }
+
+    private static LdapSaslSubjectBuilderService.Config memberOfConfig(OnLookupFailure onLookupFailure) {
+        return new LdapSaslSubjectBuilderService.Config(
+                List.of("ldap://localhost:" + directoryServer.getListenPort()),
+                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                onLookupFailure, Duration.ofSeconds(5), 2);
+    }
+
+    private static LdapSaslSubjectBuilderService.Config unreachableConfig(OnLookupFailure onLookupFailure) {
+        return new LdapSaslSubjectBuilderService.Config(
+                List.of("ldap://localhost:1"),
+                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                onLookupFailure, Duration.ofSeconds(2), 2);
+    }
+
+    private static LdapSaslSubjectBuilderService.Config hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
+        return new LdapSaslSubjectBuilderService.Config(
+                List.of("ldap://localhost:" + blackhole.getLocalPort()),
+                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                onLookupFailure, Duration.ofMillis(300), 2);
+    }
+
+    /** Accepts connections but never replies, so a client hangs until its own lookup timeout fires. */
+    private static ServerSocket startBlackhole() throws IOException {
+        var serverSocket = new ServerSocket(0);
+        var acceptThread = new Thread(() -> {
+            while (!serverSocket.isClosed()) {
+                try {
+                    serverSocket.accept();
+                }
+                catch (IOException e) {
+                    break;
+                }
+            }
+        });
+        acceptThread.setDaemon(true);
+        acceptThread.start();
+        return serverSocket;
+    }
+
+    private void assertAuthenticationFails(KafkaCluster cluster, Topic topic, String username, String password,
+                                           LdapSaslSubjectBuilderService.Config subjectBuilderConfig) {
+        try (var tester = kroxyliciousTester(proxyConfig(cluster, subjectBuilderConfig));
+                var producer = tester.producer(clientConfig(username, password))) {
+            assertThat(producer.send(new ProducerRecord<>(topic.name(), "my-key", "my-value")))
+                    .failsWithin(Duration.ofSeconds(5))
+                    .withThrowableOfType(ExecutionException.class)
+                    .withCauseExactlyInstanceOf(IllegalSaslStateException.class);
+        }
+    }
+
+    private String produceAndCaptureEncodedSubject(KafkaCluster cluster, Topic topic, String username, String password,
+                                                    LdapSaslSubjectBuilderService.Config subjectBuilderConfig) throws Exception {
+        try (var tester = kroxyliciousTester(proxyConfig(cluster, subjectBuilderConfig));
+                var producer = tester.producer(clientConfig(username, password))) {
+            assertThat(producer.send(new ProducerRecord<>(topic.name(), "my-key", "my-value")))
+                    .succeedsWithin(Duration.ofSeconds(5));
+
+            return SubjectCapturingFilter.CAPTURED_SUBJECTS.poll(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static ConfigurationBuilder proxyConfig(KafkaCluster cluster,
+                                                     LdapSaslSubjectBuilderService.Config subjectBuilderConfig) {
         var saslInspection = new NamedFilterDefinitionBuilder(SaslInspection.class.getName(), SaslInspection.class.getName())
                 .withConfig(Map.of(
                         "enabledMechanisms", List.of("PLAIN"),
@@ -126,27 +218,21 @@ class LdapMemberOfLookupIT {
         var subjectCapture = new NamedFilterDefinitionBuilder(
                 SubjectCapturingFilterFactory.class.getName(), SubjectCapturingFilterFactory.class.getName()).build();
 
-        var configBuilder = KroxyliciousConfigUtils.proxy(cluster)
+        return KroxyliciousConfigUtils.proxy(cluster)
                 .addToFilterDefinitions(saslInspection, subjectCapture)
                 .addToDefaultFilters(saslInspection.name(), subjectCapture.name());
+    }
 
+    private static Map<String, Object> clientConfig(String username, String password) {
         String jaasConfig = """
                 org.apache.kafka.common.security.plain.PlainLoginModule required
                     username="%s"
                     password="%s";
                 """.formatted(username, password);
 
-        Map<String, Object> clientConfig = Map.of(
+        return Map.of(
                 CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT",
                 SaslConfigs.SASL_MECHANISM, "PLAIN",
                 SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
-
-        try (var tester = kroxyliciousTester(configBuilder);
-                var producer = tester.producer(clientConfig)) {
-            assertThat(producer.send(new ProducerRecord<>(topic.name(), "my-key", "my-value")))
-                    .succeedsWithin(Duration.ofSeconds(5));
-
-            return SubjectCapturingFilter.CAPTURED_SUBJECTS.poll(10, TimeUnit.SECONDS);
-        }
     }
 }

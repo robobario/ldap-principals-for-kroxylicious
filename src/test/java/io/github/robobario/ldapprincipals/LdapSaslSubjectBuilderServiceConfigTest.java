@@ -69,6 +69,20 @@ class LdapSaslSubjectBuilderServiceConfigTest {
     }
 
     @Test
+    void defaultsNullOnLookupFailureToFail() {
+        var config = validConfig().onLookupFailure(null).build();
+
+        assertThat(config.onLookupFailure()).isEqualTo(OnLookupFailure.FAIL);
+    }
+
+    @Test
+    void acceptsAnonymousRolesOnLookupFailure() {
+        var config = validConfig().onLookupFailure(OnLookupFailure.ANONYMOUS_ROLES).build();
+
+        assertThat(config.onLookupFailure()).isEqualTo(OnLookupFailure.ANONYMOUS_ROLES);
+    }
+
+    @Test
     void rejectsNonPositiveLookupTimeout() {
         assertThatIllegalArgumentException().isThrownBy(() -> validConfig().lookupTimeout(Duration.ZERO).build());
     }
@@ -99,6 +113,7 @@ class LdapSaslSubjectBuilderServiceConfigTest {
         private String searchFilterTemplate = "(uid={0})";
         private String memberOfAttribute = "memberOf";
         private String roleNameExtractionPattern = "cn=([^,]+),.*";
+        private OnLookupFailure onLookupFailure = OnLookupFailure.FAIL;
         private Duration lookupTimeout = Duration.ofSeconds(5);
         private int executorPoolSize = 4;
 
@@ -132,6 +147,11 @@ class LdapSaslSubjectBuilderServiceConfigTest {
             return this;
         }
 
+        ConfigBuilder onLookupFailure(OnLookupFailure onLookupFailure) {
+            this.onLookupFailure = onLookupFailure;
+            return this;
+        }
+
         ConfigBuilder lookupTimeout(Duration lookupTimeout) {
             this.lookupTimeout = lookupTimeout;
             return this;
@@ -145,7 +165,7 @@ class LdapSaslSubjectBuilderServiceConfigTest {
         LdapSaslSubjectBuilderService.Config build() {
             return new LdapSaslSubjectBuilderService.Config(
                     serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
-                    lookupTimeout, executorPoolSize);
+                    onLookupFailure, lookupTimeout, executorPoolSize);
         }
     }
 }
