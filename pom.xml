@@ -49,9 +49,14 @@
         <assertj-core.version>3.27.7</assertj-core.version>
         <mockito.version>5.24.0</mockito.version>
         <kroxylicious-api.version>0.26.0</kroxylicious-api.version>
+        <kroxylicious-testing.version>0.16.0</kroxylicious-testing.version>
+        <apache-ldap-api.version>2.1.9</apache-ldap-api.version>
+        <unboundid-ldapsdk.version>7.0.3</unboundid-ldapsdk.version>
+        <kafka.version>4.3.2</kafka.version>
 
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.6.1</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.6.1</maven-failsafe-plugin.version>
         <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
@@ -80,6 +85,17 @@
         </dependency>
 
         <dependency>
+            <groupId>org.apache.directory.api</groupId>
+            <artifactId>api-ldap-client-api</artifactId>
+            <version>${apache-ldap-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.directory.api</groupId>
+            <artifactId>api-ldap-codec-standalone</artifactId>
+            <version>${apache-ldap-api.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -96,6 +112,62 @@
             <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.17</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.unboundid</groupId>
+            <artifactId>unboundid-ldapsdk</artifactId>
+            <version>${unboundid-ldapsdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.kroxylicious</groupId>
+            <artifactId>kroxylicious-integration-test-support</artifactId>
+            <version>${kroxylicious-api.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kroxylicious</groupId>
+            <artifactId>kroxylicious-sasl-inspection</artifactId>
+            <version>${kroxylicious-api.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kroxylicious.testing</groupId>
+            <artifactId>testing-api</artifactId>
+            <version>${kroxylicious-testing.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kroxylicious.testing</groupId>
+            <artifactId>testing-junit5-extension</artifactId>
+            <version>${kroxylicious-testing.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kroxylicious.testing</groupId>
+            <artifactId>testing-impl</artifactId>
+            <version>${kroxylicious-testing.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_2.13</artifactId>
+            <version>${kafka.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-group-coordinator</artifactId>
+            <version>${kafka.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -110,6 +182,19 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${maven-surefire-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${maven-failsafe-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -184,6 +269,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
             </plugin>
             <!-- Active for every deploy, snapshot or release: with no distributionManagement
                  section, this plugin's "extensions" hook is what makes `mvn deploy` work at all. -->
