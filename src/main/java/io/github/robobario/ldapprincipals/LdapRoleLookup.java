@@ -31,7 +31,7 @@ final class LdapRoleLookup implements RoleLookup {
     private final String memberOfAttribute;
     private final long timeoutMillis;
 
-    LdapRoleLookup(LdapSaslSubjectBuilderService.Config config) {
+    LdapRoleLookup(LdapRoleLookupConfig config) {
         this.serverUris = config.serverUris();
         this.bindDn = config.bindDn();
         this.bindPassword = config.bindPassword();
@@ -66,7 +66,7 @@ final class LdapRoleLookup implements RoleLookup {
         try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
             connection.bind(bindDn, bindPassword);
             String filter = searchFilterTemplate.replace(
-                    LdapSaslSubjectBuilderService.Config.IDENTITY_PLACEHOLDER, FilterEncoder.encodeFilterValue(identity));
+                    LdapRoleLookupConfig.IDENTITY_PLACEHOLDER, FilterEncoder.encodeFilterValue(identity));
             try (EntryCursor cursor = connection.search(searchBase, filter, SearchScope.SUBTREE, memberOfAttribute)) {
                 if (!cursor.next()) {
                     return List.of();

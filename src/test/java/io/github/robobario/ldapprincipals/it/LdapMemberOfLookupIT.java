@@ -22,6 +22,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
+import io.github.robobario.ldapprincipals.LdapRoleLookupConfig;
 import io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.filter.sasl.inspection.SaslInspection;
@@ -146,22 +147,22 @@ class LdapMemberOfLookupIT {
         }
     }
 
-    private static LdapSaslSubjectBuilderService.Config memberOfConfig(OnLookupFailure onLookupFailure) {
-        return new LdapSaslSubjectBuilderService.Config(
+    private static LdapRoleLookupConfig memberOfConfig(OnLookupFailure onLookupFailure) {
+        return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:" + directoryServer.getListenPort()),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofSeconds(5), 2);
     }
 
-    private static LdapSaslSubjectBuilderService.Config unreachableConfig(OnLookupFailure onLookupFailure) {
-        return new LdapSaslSubjectBuilderService.Config(
+    private static LdapRoleLookupConfig unreachableConfig(OnLookupFailure onLookupFailure) {
+        return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:1"),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofSeconds(2), 2);
     }
 
-    private static LdapSaslSubjectBuilderService.Config hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
-        return new LdapSaslSubjectBuilderService.Config(
+    private static LdapRoleLookupConfig hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
+        return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:" + blackhole.getLocalPort()),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofMillis(300), 2);
@@ -186,7 +187,7 @@ class LdapMemberOfLookupIT {
     }
 
     private void assertAuthenticationFails(KafkaCluster cluster, Topic topic, String username, String password,
-                                           LdapSaslSubjectBuilderService.Config subjectBuilderConfig) {
+                                           LdapRoleLookupConfig subjectBuilderConfig) {
         try (var tester = kroxyliciousTester(proxyConfig(cluster, subjectBuilderConfig));
                 var producer = tester.producer(clientConfig(username, password))) {
             assertThat(producer.send(new ProducerRecord<>(topic.name(), "my-key", "my-value")))
@@ -197,7 +198,7 @@ class LdapMemberOfLookupIT {
     }
 
     private String produceAndCaptureEncodedSubject(KafkaCluster cluster, Topic topic, String username, String password,
-                                                    LdapSaslSubjectBuilderService.Config subjectBuilderConfig) throws Exception {
+                                                    LdapRoleLookupConfig subjectBuilderConfig) throws Exception {
         try (var tester = kroxyliciousTester(proxyConfig(cluster, subjectBuilderConfig));
                 var producer = tester.producer(clientConfig(username, password))) {
             assertThat(producer.send(new ProducerRecord<>(topic.name(), "my-key", "my-value")))
@@ -208,7 +209,7 @@ class LdapMemberOfLookupIT {
     }
 
     private static ConfigurationBuilder proxyConfig(KafkaCluster cluster,
-                                                     LdapSaslSubjectBuilderService.Config subjectBuilderConfig) {
+                                                     LdapRoleLookupConfig subjectBuilderConfig) {
         var saslInspection = new NamedFilterDefinitionBuilder(SaslInspection.class.getName(), SaslInspection.class.getName())
                 .withConfig(Map.of(
                         "enabledMechanisms", List.of("PLAIN"),

@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
-class LdapSaslSubjectBuilderServiceConfigTest {
+class LdapRoleLookupConfigTest {
 
     @Test
     void acceptsAValidConfig() {
@@ -162,8 +162,8 @@ class LdapSaslSubjectBuilderServiceConfigTest {
             return this;
         }
 
-        LdapSaslSubjectBuilderService.Config build() {
-            return new LdapSaslSubjectBuilderService.Config(
+        LdapRoleLookupConfig build() {
+            return new LdapRoleLookupConfig(
                     serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
                     onLookupFailure, lookupTimeout, executorPoolSize);
         }
