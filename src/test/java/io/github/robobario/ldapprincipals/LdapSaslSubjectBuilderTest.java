@@ -4,10 +4,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.authentication.ClientSaslContext;
@@ -22,9 +23,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LdapSaslSubjectBuilderTest {
 
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    @AfterEach
+    void shutdown() {
+        executor.shutdownNow();
+    }
+
     @Test
     void buildsSubjectWithNoRoles() {
-        var builder = builder(identity -> List.of());
+        var builder = builder(identity -> List.of(), OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
         var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
@@ -33,7 +41,7 @@ class LdapSaslSubjectBuilderTest {
 
     @Test
     void buildsSubjectWithRoles() {
-        var builder = builder(identity -> List.of("cn=kafka-admins,ou=groups,dc=example,dc=com"));
+        var builder = builder(identity -> List.of("cn=kafka-admins,ou=groups,dc=example,dc=com"), OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
         var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
@@ -44,7 +52,7 @@ class LdapSaslSubjectBuilderTest {
 
     @Test
     void dropsRawRolesThatDoNotMatchTheExtractionPattern() {
-        var builder = builder(identity -> List.of("ou=people,dc=example,dc=com"));
+        var builder = builder(identity -> List.of("ou=people,dc=example,dc=com"), OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
         var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
@@ -57,7 +65,7 @@ class LdapSaslSubjectBuilderTest {
         var builder = builder(identity -> {
             seenIdentity.set(identity);
             return List.of();
-        });
+        }, OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
         builder.buildSaslSubject(context("bob")).toCompletableFuture().join();
 
@@ -69,7 +77,7 @@ class LdapSaslSubjectBuilderTest {
         var lookupFailure = new RuntimeException("connection refused");
         var builder = builder(identity -> {
             throw lookupFailure;
-        });
+        }, OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
         assertThatThrownBy(() -> builder.buildSaslSubject(context("alice")).toCompletableFuture().join())
                 .isInstanceOf(CompletionException.class)
@@ -80,9 +88,9 @@ class LdapSaslSubjectBuilderTest {
 
     @Test
     void buildsUserOnlySubjectWhenLookupFailsAndPolicyIsAnonymousRoles() {
-        var builder = new LdapSaslSubjectBuilder(identity -> {
+        var builder = builder(identity -> {
             throw new RuntimeException("connection refused");
-        }, extractor(), directExecutor(), Duration.ofSeconds(5), OnLookupFailure.ANONYMOUS_ROLES);
+        }, OnLookupFailure.ANONYMOUS_ROLES, Duration.ofSeconds(5));
 
         var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
@@ -90,82 +98,61 @@ class LdapSaslSubjectBuilderTest {
     }
 
     @Test
-    void buildsUserOnlySubjectWhenLookupTimesOutAndPolicyIsAnonymousRoles() {
-        var executor = Executors.newSingleThreadExecutor();
-        try {
-            var builder = new LdapSaslSubjectBuilder(identity -> {
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                return List.of();
-            }, extractor(), executor, Duration.ofMillis(50), OnLookupFailure.ANONYMOUS_ROLES);
+    void failsTheStageWhenLookupExceedsTheTimeout() {
+        var builder = builder(identity -> {
+            try {
+                Thread.sleep(500);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return List.of();
+        }, OnLookupFailure.FAIL, Duration.ofMillis(50));
 
-            var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
-
-            assertThat(subject).isEqualTo(new Subject(new User("alice")));
-        }
-        finally {
-            executor.shutdownNow();
-        }
+        assertThatThrownBy(() -> builder.buildSaslSubject(context("alice")).toCompletableFuture().join())
+                .isInstanceOf(CompletionException.class)
+                .cause()
+                .isInstanceOf(SubjectBuildingException.class);
     }
 
     @Test
-    void failsTheStageWhenLookupExceedsTheTimeout() {
-        var executor = Executors.newSingleThreadExecutor();
-        try {
-            var builder = new LdapSaslSubjectBuilder(identity -> {
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                return List.of();
-            }, extractor(), executor, Duration.ofMillis(50), OnLookupFailure.FAIL);
+    void buildsUserOnlySubjectWhenLookupTimesOutAndPolicyIsAnonymousRoles() {
+        var builder = builder(identity -> {
+            try {
+                Thread.sleep(500);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return List.of();
+        }, OnLookupFailure.ANONYMOUS_ROLES, Duration.ofMillis(50));
 
-            assertThatThrownBy(() -> builder.buildSaslSubject(context("alice")).toCompletableFuture().join())
-                    .isInstanceOf(CompletionException.class)
-                    .cause()
-                    .isInstanceOf(SubjectBuildingException.class);
-        }
-        finally {
-            executor.shutdownNow();
-        }
+        var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
+
+        assertThat(subject).isEqualTo(new Subject(new User("alice")));
     }
 
     @Test
     void lookupRunsOnTheProvidedExecutorNotTheCallingThread() {
         var callingThread = Thread.currentThread();
         var lookupThread = new AtomicReference<Thread>();
-        var executor = Executors.newSingleThreadExecutor();
-        try {
-            var builder = new LdapSaslSubjectBuilder(identity -> {
-                lookupThread.set(Thread.currentThread());
-                return List.of();
-            }, extractor(), executor, Duration.ofSeconds(5), OnLookupFailure.FAIL);
+        var builder = builder(identity -> {
+            lookupThread.set(Thread.currentThread());
+            return List.of();
+        }, OnLookupFailure.FAIL, Duration.ofSeconds(5));
 
-            builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
+        builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
-            assertThat(lookupThread).doesNotHaveValue(callingThread);
-        }
-        finally {
-            executor.shutdownNow();
-        }
+        assertThat(lookupThread).doesNotHaveValue(callingThread);
     }
 
-    private static LdapSaslSubjectBuilder builder(RoleLookup roleLookup) {
-        return new LdapSaslSubjectBuilder(roleLookup, extractor(), directExecutor(), Duration.ofSeconds(5), OnLookupFailure.FAIL);
+    private LdapSaslSubjectBuilder builder(RoleLookup roleLookup, OnLookupFailure onLookupFailure, Duration lookupTimeout) {
+        var enrichment = new LdapRoleEnrichment(roleLookup, extractor(), executor, lookupTimeout, onLookupFailure);
+        return new LdapSaslSubjectBuilder(enrichment);
     }
 
     private static RoleNameExtractor extractor() {
         return new RoleNameExtractor("cn=([^,]+),.*");
-    }
-
-    private static Executor directExecutor() {
-        return Runnable::run;
     }
 
     private static SaslSubjectBuilder.Context context(String authorizationId) {

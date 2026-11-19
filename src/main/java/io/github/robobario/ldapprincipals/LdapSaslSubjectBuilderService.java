@@ -1,16 +1,5 @@
 package io.github.robobario.ldapprincipals;
 
-import java.net.URI;
-import java.time.Duration;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
-
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilder;
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilderService;
 import io.kroxylicious.proxy.plugin.Plugin;
@@ -19,147 +8,25 @@ import io.kroxylicious.proxy.plugin.Plugin;
  * Builds {@link SaslSubjectBuilder}s that enrich the SASL-authenticated identity with roles
  * read from an LDAP {@code memberOf} attribute. Plaintext LDAP only; TLS is not yet supported.
  */
-@Plugin(configType = LdapSaslSubjectBuilderService.Config.class)
-public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<LdapSaslSubjectBuilderService.Config> {
+@Plugin(configType = LdapRoleLookupConfig.class)
+public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<LdapRoleLookupConfig> {
 
-    private RoleLookup roleLookup;
-    private RoleNameExtractor roleNameExtractor;
-    private ExecutorService executor;
-    private Duration lookupTimeout;
-    private OnLookupFailure onLookupFailure;
+    private LdapRoleEnrichment enrichment;
 
     @Override
-    public void initialize(Config config) {
-        this.roleLookup = new LdapRoleLookup(config);
-        this.roleNameExtractor = new RoleNameExtractor(config.roleNameExtractionPattern());
-        this.executor = Executors.newFixedThreadPool(config.executorPoolSize(), namedThreadFactory());
-        this.lookupTimeout = config.lookupTimeout();
-        this.onLookupFailure = config.onLookupFailure();
-    }
-
-    private static ThreadFactory namedThreadFactory() {
-        var counter = new AtomicInteger();
-        return runnable -> {
-            var thread = new Thread(runnable, "ldap-role-lookup-" + counter.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        };
+    public void initialize(LdapRoleLookupConfig config) {
+        this.enrichment = new LdapRoleEnrichment(config);
     }
 
     @Override
     public SaslSubjectBuilder build() {
-        return new LdapSaslSubjectBuilder(roleLookup, roleNameExtractor, executor, lookupTimeout, onLookupFailure);
+        return new LdapSaslSubjectBuilder(enrichment);
     }
 
     @Override
     public void close() {
-        if (executor != null) {
-            executor.shutdownNow();
-        }
-    }
-
-    /**
-     * @param serverUris LDAP server URIs ({@code ldap://host:port}), tried in order until one succeeds.
-     * @param bindDn DN of the service account used to query LDAP.
-     * @param bindPassword password of the service account. Supplied inline; file-based secret sources are not yet supported.
-     * @param searchBase base DN under which the identity's entry is searched for.
-     * @param searchFilterTemplate search filter containing a {@code {0}} placeholder for the identity,
-     *        e.g. {@code (uid={0})}. The identity is escaped before substitution.
-     * @param memberOfAttribute name of the multi-valued attribute holding group membership. Defaults to {@code memberOf}.
-     * @param roleNameExtractionPattern regex matched against each raw LDAP value (typically a group DN) to derive a role
-     *        name, e.g. {@code cn=([^,]+),.*}. Must contain at least one capturing group; values that don't match the
-     *        pattern contribute no role.
-     * @param onLookupFailure behavior on LDAP lookup failure (connection failure, timeout, malformed response).
-     *        Defaults to {@link OnLookupFailure#FAIL}. See {@link OnLookupFailure#ANONYMOUS_ROLES} for the
-     *        privilege-escalation risk of the permissive option.
-     * @param lookupTimeout maximum time to wait for a lookup to complete.
-     * @param executorPoolSize size of the dedicated executor LDAP operations run on.
-     */
-    public record Config(
-            List<String> serverUris,
-            String bindDn,
-            String bindPassword,
-            String searchBase,
-            String searchFilterTemplate,
-            String memberOfAttribute,
-            String roleNameExtractionPattern,
-            OnLookupFailure onLookupFailure,
-            Duration lookupTimeout,
-            int executorPoolSize) {
-
-        static final String IDENTITY_PLACEHOLDER = "{0}";
-        private static final String DEFAULT_MEMBER_OF_ATTRIBUTE = "memberOf";
-
-        public Config {
-            if (serverUris == null || serverUris.isEmpty()) {
-                throw new IllegalArgumentException("serverUris must not be empty");
-            }
-            serverUris = List.copyOf(serverUris);
-            serverUris.forEach(Config::validateServerUri);
-            requireNonBlank(bindDn, "bindDn");
-            Objects.requireNonNull(bindPassword, "bindPassword must not be null");
-            requireNonBlank(searchBase, "searchBase");
-            requireNonBlank(searchFilterTemplate, "searchFilterTemplate");
-            if (!searchFilterTemplate.contains(IDENTITY_PLACEHOLDER)) {
-                throw new IllegalArgumentException(
-                        "searchFilterTemplate must contain the '" + IDENTITY_PLACEHOLDER + "' placeholder");
-            }
-            memberOfAttribute = memberOfAttribute == null || memberOfAttribute.isBlank() ? DEFAULT_MEMBER_OF_ATTRIBUTE : memberOfAttribute;
-            validateRoleNameExtractionPattern(roleNameExtractionPattern);
-            onLookupFailure = onLookupFailure == null ? OnLookupFailure.FAIL : onLookupFailure;
-            Objects.requireNonNull(lookupTimeout, "lookupTimeout must not be null");
-            if (!lookupTimeout.isPositive()) {
-                throw new IllegalArgumentException("lookupTimeout must be positive");
-            }
-            if (executorPoolSize < 1) {
-                throw new IllegalArgumentException("executorPoolSize must be at least 1");
-            }
-        }
-
-        private static void validateServerUri(String serverUri) {
-            URI uri;
-            try {
-                uri = URI.create(serverUri);
-            }
-            catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid LDAP server URI '" + serverUri + "'", e);
-            }
-            if (!"ldap".equals(uri.getScheme())) {
-                throw new IllegalArgumentException(
-                        "Unsupported scheme in server URI '" + serverUri + "': only 'ldap://' is supported until TLS support is added");
-            }
-            if (uri.getHost() == null) {
-                throw new IllegalArgumentException("Server URI '" + serverUri + "' is missing a host");
-            }
-        }
-
-        private static void requireNonBlank(String value, String fieldName) {
-            if (value == null || value.isBlank()) {
-                throw new IllegalArgumentException(fieldName + " must not be blank");
-            }
-        }
-
-        private static void validateRoleNameExtractionPattern(String roleNameExtractionPattern) {
-            requireNonBlank(roleNameExtractionPattern, "roleNameExtractionPattern");
-            Pattern pattern;
-            try {
-                pattern = Pattern.compile(roleNameExtractionPattern);
-            }
-            catch (PatternSyntaxException e) {
-                throw new IllegalArgumentException("Invalid roleNameExtractionPattern '" + roleNameExtractionPattern + "'", e);
-            }
-            if (pattern.matcher("").groupCount() < 1) {
-                throw new IllegalArgumentException(
-                        "roleNameExtractionPattern '" + roleNameExtractionPattern + "' must contain at least one capturing group");
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "Config[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
-                    + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
-                    + ", roleNameExtractionPattern=" + roleNameExtractionPattern + ", onLookupFailure=" + onLookupFailure
-                    + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + "]";
+        if (enrichment != null) {
+            enrichment.close();
         }
     }
 }

@@ -87,7 +87,7 @@ class LdapRoleLookupTest {
     }
 
     private static LdapRoleLookup lookup() {
-        return new LdapRoleLookup(new LdapSaslSubjectBuilderService.Config(
+        return new LdapRoleLookup(new LdapRoleLookupConfig(
                 List.of("ldap://localhost:" + directoryServer.getListenPort()),
                 ADMIN_DN,
                 ADMIN_PASSWORD,
