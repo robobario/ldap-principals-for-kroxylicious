@@ -8,6 +8,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilder;
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilderService;
@@ -21,12 +23,14 @@ import io.kroxylicious.proxy.plugin.Plugin;
 public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<LdapSaslSubjectBuilderService.Config> {
 
     private RoleLookup roleLookup;
+    private RoleNameExtractor roleNameExtractor;
     private ExecutorService executor;
     private Duration lookupTimeout;
 
     @Override
     public void initialize(Config config) {
         this.roleLookup = new LdapRoleLookup(config);
+        this.roleNameExtractor = new RoleNameExtractor(config.roleNameExtractionPattern());
         this.executor = Executors.newFixedThreadPool(config.executorPoolSize(), namedThreadFactory());
         this.lookupTimeout = config.lookupTimeout();
     }
@@ -42,7 +46,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
 
     @Override
     public SaslSubjectBuilder build() {
-        return new LdapSaslSubjectBuilder(roleLookup, executor, lookupTimeout);
+        return new LdapSaslSubjectBuilder(roleLookup, roleNameExtractor, executor, lookupTimeout);
     }
 
     @Override
@@ -60,6 +64,9 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
      * @param searchFilterTemplate search filter containing a {@code {0}} placeholder for the identity,
      *        e.g. {@code (uid={0})}. The identity is escaped before substitution.
      * @param memberOfAttribute name of the multi-valued attribute holding group membership. Defaults to {@code memberOf}.
+     * @param roleNameExtractionPattern regex matched against each raw LDAP value (typically a group DN) to derive a role
+     *        name, e.g. {@code cn=([^,]+),.*}. Must contain at least one capturing group; values that don't match the
+     *        pattern contribute no role.
      * @param lookupTimeout maximum time to wait for a lookup to complete.
      * @param executorPoolSize size of the dedicated executor LDAP operations run on.
      */
@@ -70,6 +77,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
             String searchBase,
             String searchFilterTemplate,
             String memberOfAttribute,
+            String roleNameExtractionPattern,
             Duration lookupTimeout,
             int executorPoolSize) {
 
@@ -91,6 +99,7 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
                         "searchFilterTemplate must contain the '" + IDENTITY_PLACEHOLDER + "' placeholder");
             }
             memberOfAttribute = memberOfAttribute == null || memberOfAttribute.isBlank() ? DEFAULT_MEMBER_OF_ATTRIBUTE : memberOfAttribute;
+            validateRoleNameExtractionPattern(roleNameExtractionPattern);
             Objects.requireNonNull(lookupTimeout, "lookupTimeout must not be null");
             if (!lookupTimeout.isPositive()) {
                 throw new IllegalArgumentException("lookupTimeout must be positive");
@@ -123,10 +132,26 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
             }
         }
 
+        private static void validateRoleNameExtractionPattern(String roleNameExtractionPattern) {
+            requireNonBlank(roleNameExtractionPattern, "roleNameExtractionPattern");
+            Pattern pattern;
+            try {
+                pattern = Pattern.compile(roleNameExtractionPattern);
+            }
+            catch (PatternSyntaxException e) {
+                throw new IllegalArgumentException("Invalid roleNameExtractionPattern '" + roleNameExtractionPattern + "'", e);
+            }
+            if (pattern.matcher("").groupCount() < 1) {
+                throw new IllegalArgumentException(
+                        "roleNameExtractionPattern '" + roleNameExtractionPattern + "' must contain at least one capturing group");
+            }
+        }
+
         @Override
         public String toString() {
             return "Config[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
                     + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
+                    + ", roleNameExtractionPattern=" + roleNameExtractionPattern
                     + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + "]";
         }
     }

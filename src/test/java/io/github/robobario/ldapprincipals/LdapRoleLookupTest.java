@@ -94,6 +94,7 @@ class LdapRoleLookupTest {
                 PEOPLE_DN,
                 "(uid={0})",
                 "memberOf",
+                "cn=([^,]+),.*",
                 Duration.ofSeconds(5),
                 2));
     }

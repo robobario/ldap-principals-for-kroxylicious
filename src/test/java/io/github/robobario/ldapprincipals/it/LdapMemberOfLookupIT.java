@@ -94,7 +94,7 @@ class LdapMemberOfLookupIT {
         String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, "alice", "alice-secret");
 
         assertThat(encodedSubject.split("\\|"))
-                .containsExactlyInAnyOrder("User[name=alice]", "Role[name=" + KAFKA_ADMINS_GROUP_DN + "]");
+                .containsExactlyInAnyOrder("User[name=alice]", "Role[name=kafka-admins]");
     }
 
     @Test
@@ -113,6 +113,7 @@ class LdapMemberOfLookupIT {
                 PEOPLE_DN,
                 "(uid={0})",
                 "memberOf",
+                "cn=([^,]+),.*",
                 Duration.ofSeconds(5),
                 2);
 

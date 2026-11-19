@@ -39,7 +39,16 @@ class LdapSaslSubjectBuilderTest {
 
         assertThat(subject).isEqualTo(new Subject(
                 new User("alice"),
-                new Role("cn=kafka-admins,ou=groups,dc=example,dc=com")));
+                new Role("kafka-admins")));
+    }
+
+    @Test
+    void dropsRawRolesThatDoNotMatchTheExtractionPattern() {
+        var builder = builder(identity -> List.of("ou=people,dc=example,dc=com"));
+
+        var subject = builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
+
+        assertThat(subject).isEqualTo(new Subject(new User("alice")));
     }
 
     @Test
@@ -81,7 +90,7 @@ class LdapSaslSubjectBuilderTest {
                     Thread.currentThread().interrupt();
                 }
                 return List.of();
-            }, executor, Duration.ofMillis(50));
+            }, extractor(), executor, Duration.ofMillis(50));
 
             assertThatThrownBy(() -> builder.buildSaslSubject(context("alice")).toCompletableFuture().join())
                     .isInstanceOf(CompletionException.class)
@@ -102,7 +111,7 @@ class LdapSaslSubjectBuilderTest {
             var builder = new LdapSaslSubjectBuilder(identity -> {
                 lookupThread.set(Thread.currentThread());
                 return List.of();
-            }, executor, Duration.ofSeconds(5));
+            }, extractor(), executor, Duration.ofSeconds(5));
 
             builder.buildSaslSubject(context("alice")).toCompletableFuture().join();
 
@@ -114,7 +123,11 @@ class LdapSaslSubjectBuilderTest {
     }
 
     private static LdapSaslSubjectBuilder builder(RoleLookup roleLookup) {
-        return new LdapSaslSubjectBuilder(roleLookup, directExecutor(), Duration.ofSeconds(5));
+        return new LdapSaslSubjectBuilder(roleLookup, extractor(), directExecutor(), Duration.ofSeconds(5));
+    }
+
+    private static RoleNameExtractor extractor() {
+        return new RoleNameExtractor("cn=([^,]+),.*");
     }
 
     private static Executor directExecutor() {

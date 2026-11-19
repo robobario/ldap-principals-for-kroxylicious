@@ -47,6 +47,21 @@ class LdapSaslSubjectBuilderServiceConfigTest {
     }
 
     @Test
+    void rejectsBlankRoleNameExtractionPattern() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().roleNameExtractionPattern(" ").build());
+    }
+
+    @Test
+    void rejectsInvalidRoleNameExtractionPattern() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().roleNameExtractionPattern("cn=(([^,]+,.*").build());
+    }
+
+    @Test
+    void rejectsRoleNameExtractionPatternWithoutACapturingGroup() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().roleNameExtractionPattern("cn=[^,]+,.*").build());
+    }
+
+    @Test
     void defaultsBlankMemberOfAttributeToMemberOf() {
         var config = validConfig().memberOfAttribute(" ").build();
 
@@ -83,6 +98,7 @@ class LdapSaslSubjectBuilderServiceConfigTest {
         private String searchBase = "ou=people,dc=example,dc=com";
         private String searchFilterTemplate = "(uid={0})";
         private String memberOfAttribute = "memberOf";
+        private String roleNameExtractionPattern = "cn=([^,]+),.*";
         private Duration lookupTimeout = Duration.ofSeconds(5);
         private int executorPoolSize = 4;
 
@@ -111,6 +127,11 @@ class LdapSaslSubjectBuilderServiceConfigTest {
             return this;
         }
 
+        ConfigBuilder roleNameExtractionPattern(String roleNameExtractionPattern) {
+            this.roleNameExtractionPattern = roleNameExtractionPattern;
+            return this;
+        }
+
         ConfigBuilder lookupTimeout(Duration lookupTimeout) {
             this.lookupTimeout = lookupTimeout;
             return this;
@@ -123,7 +144,8 @@ class LdapSaslSubjectBuilderServiceConfigTest {
 
         LdapSaslSubjectBuilderService.Config build() {
             return new LdapSaslSubjectBuilderService.Config(
-                    serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, lookupTimeout, executorPoolSize);
+                    serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
+                    lookupTimeout, executorPoolSize);
         }
     }
 }
