@@ -1,9 +1,10 @@
 package io.github.robobario.ldapprincipals;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.TrustManager;
 
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
@@ -23,7 +24,7 @@ import org.apache.directory.ldap.client.api.LdapNetworkConnection;
  */
 final class LdapRoleLookup implements RoleLookup {
 
-    private final List<String> serverUris;
+    private final List<Server> servers;
     private final String bindDn;
     private final String bindPassword;
     private final String searchBase;
@@ -32,7 +33,7 @@ final class LdapRoleLookup implements RoleLookup {
     private final long timeoutMillis;
 
     LdapRoleLookup(LdapRoleLookupConfig config) {
-        this.serverUris = config.serverUris();
+        this.servers = config.servers().stream().map(Server::from).toList();
         this.bindDn = config.bindDn();
         this.bindPassword = config.bindPassword();
         this.searchBase = config.searchBase();
@@ -44,9 +45,9 @@ final class LdapRoleLookup implements RoleLookup {
     @Override
     public List<String> lookupRoles(String identity) {
         Exception lastFailure = null;
-        for (String serverUri : serverUris) {
+        for (Server server : servers) {
             try {
-                return lookupRoles(serverUri, identity);
+                return lookupRoles(server, identity);
             }
             catch (LdapException | CursorException | IOException e) {
                 lastFailure = e;
@@ -56,13 +57,17 @@ final class LdapRoleLookup implements RoleLookup {
                 "Unable to look up roles for identity '" + identity + "': no configured LDAP server could be reached", lastFailure);
     }
 
-    private List<String> lookupRoles(String serverUri, String identity) throws LdapException, CursorException, IOException {
-        URI uri = URI.create(serverUri);
-        int port = uri.getPort() == -1 ? 389 : uri.getPort();
+    private List<String> lookupRoles(Server server, String identity) throws LdapException, CursorException, IOException {
         LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
-        connectionConfig.setLdapHost(uri.getHost());
-        connectionConfig.setLdapPort(port);
+        connectionConfig.setLdapHost(server.host());
+        connectionConfig.setLdapPort(server.port());
         connectionConfig.setTimeout(timeoutMillis);
+        connectionConfig.setUseSsl(server.useSsl());
+        connectionConfig.setUseTls(server.startTls());
+        connectionConfig.setSslEndpointIdentificationAlgorithm("LDAPS");
+        if (server.trustManagers() != null) {
+            connectionConfig.setTrustManagers(server.trustManagers());
+        }
         try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
             connection.bind(bindDn, bindPassword);
             String filter = searchFilterTemplate.replace(
@@ -86,6 +91,13 @@ final class LdapRoleLookup implements RoleLookup {
                 }
                 return roles;
             }
+        }
+    }
+
+    private record Server(String host, int port, boolean useSsl, boolean startTls, TrustManager[] trustManagers) {
+        static Server from(LdapServerConfig config) {
+            return new Server(config.host(), config.port(), config.useSsl(), config.startTls(),
+                    config.trustStore() == null ? null : config.trustStore().toTrustManagers());
         }
     }
 }

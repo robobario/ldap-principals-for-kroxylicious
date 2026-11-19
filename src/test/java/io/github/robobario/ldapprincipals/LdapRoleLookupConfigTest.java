@@ -17,18 +17,32 @@ class LdapRoleLookupConfigTest {
     }
 
     @Test
-    void rejectsEmptyServerUris() {
-        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of()).build());
+    void rejectsEmptyServers() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().servers(List.of()).build());
     }
 
     @Test
-    void rejectsNonLdapScheme() {
-        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldaps://directory.example.com:636")).build());
+    void rejectsPlaintextLdapWithoutOptIn() {
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> validConfig().servers(List.of(plaintextServer())).allowPlaintextLdap(false).build());
     }
 
     @Test
-    void rejectsServerUriWithoutHost() {
-        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldap:///")).build());
+    void acceptsPlaintextLdapWithOptIn() {
+        assertThatNoException().isThrownBy(
+                () -> validConfig().servers(List.of(plaintextServer())).allowPlaintextLdap(true).build());
+    }
+
+    @Test
+    void acceptsPlaintextLdapWithStartTls() {
+        assertThatNoException().isThrownBy(() -> validConfig()
+                .servers(List.of(new LdapServerConfig("ldap://directory.example.com:389", true, null)))
+                .allowPlaintextLdap(false).build());
+    }
+
+    @Test
+    void acceptsLdapsWithoutOptIn() {
+        assertThatNoException().isThrownBy(() -> validConfig().allowPlaintextLdap(false).build());
     }
 
     @Test
@@ -104,9 +118,13 @@ class LdapRoleLookupConfigTest {
         return new ConfigBuilder();
     }
 
+    private static LdapServerConfig plaintextServer() {
+        return new LdapServerConfig("ldap://directory.example.com:389", false, null);
+    }
+
     /** Hand-rolled builder so each test can override a single field without repeating the rest. */
     private static final class ConfigBuilder {
-        private List<String> serverUris = List.of("ldap://directory.example.com:389");
+        private List<LdapServerConfig> servers = List.of(new LdapServerConfig("ldaps://directory.example.com:636", false, null));
         private String bindDn = "cn=kroxylicious,dc=example,dc=com";
         private String bindPassword = "secret";
         private String searchBase = "ou=people,dc=example,dc=com";
@@ -116,9 +134,10 @@ class LdapRoleLookupConfigTest {
         private OnLookupFailure onLookupFailure = OnLookupFailure.FAIL;
         private Duration lookupTimeout = Duration.ofSeconds(5);
         private int executorPoolSize = 4;
+        private boolean allowPlaintextLdap = false;
 
-        ConfigBuilder serverUris(List<String> serverUris) {
-            this.serverUris = serverUris;
+        ConfigBuilder servers(List<LdapServerConfig> servers) {
+            this.servers = servers;
             return this;
         }
 
@@ -162,10 +181,15 @@ class LdapRoleLookupConfigTest {
             return this;
         }
 
+        ConfigBuilder allowPlaintextLdap(boolean allowPlaintextLdap) {
+            this.allowPlaintextLdap = allowPlaintextLdap;
+            return this;
+        }
+
         LdapRoleLookupConfig build() {
             return new LdapRoleLookupConfig(
-                    serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
-                    onLookupFailure, lookupTimeout, executorPoolSize);
+                    servers, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
+                    onLookupFailure, lookupTimeout, executorPoolSize, allowPlaintextLdap);
         }
     }
 }

@@ -33,7 +33,7 @@ class LdapTransportSubjectBuilderServiceConfigTest {
 
     private static LdapRoleLookupConfig ldapConfig() {
         return new LdapRoleLookupConfig(
-                List.of("ldap://directory.example.com:389"),
+                List.of(new LdapServerConfig("ldap://directory.example.com:389", false, null)),
                 "cn=kroxylicious,dc=example,dc=com",
                 "secret",
                 "ou=people,dc=example,dc=com",
@@ -42,6 +42,7 @@ class LdapTransportSubjectBuilderServiceConfigTest {
                 "cn=([^,]+),.*",
                 OnLookupFailure.FAIL,
                 Duration.ofSeconds(5),
-                4);
+                4,
+                true);
     }
 }

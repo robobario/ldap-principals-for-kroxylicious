@@ -6,7 +6,7 @@ import io.kroxylicious.proxy.plugin.Plugin;
 
 /**
  * Builds {@link SaslSubjectBuilder}s that enrich the SASL-authenticated identity with roles
- * read from an LDAP {@code memberOf} attribute. Plaintext LDAP only; TLS is not yet supported.
+ * read from an LDAP {@code memberOf} attribute.
  */
 @Plugin(configType = LdapRoleLookupConfig.class)
 public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<LdapRoleLookupConfig> {
