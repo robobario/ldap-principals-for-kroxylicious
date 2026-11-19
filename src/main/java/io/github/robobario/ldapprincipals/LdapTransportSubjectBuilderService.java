@@ -13,12 +13,12 @@ import io.kroxylicious.proxy.plugin.Plugin;
 @Plugin(configType = LdapTransportSubjectBuilderService.Config.class)
 public class LdapTransportSubjectBuilderService implements TransportSubjectBuilderService<LdapTransportSubjectBuilderService.Config> {
 
-    private RoleNameExtractor identityExtractor;
+    private CertificateIdentityExtractor identityExtractor;
     private LdapRoleEnrichment enrichment;
 
     @Override
     public void initialize(Config config) {
-        this.identityExtractor = new RoleNameExtractor(config.identityExtractionPattern());
+        this.identityExtractor = new CertificateIdentityExtractor(config.identityRdnType());
         this.enrichment = new LdapRoleEnrichment(config.ldap());
     }
 
@@ -35,14 +35,13 @@ public class LdapTransportSubjectBuilderService implements TransportSubjectBuild
     }
 
     /**
-     * @param identityExtractionPattern regex matched against the client certificate's subject DN to derive the
-     *        identity, e.g. {@code CN=([^,]+),.*}. Must contain at least one capturing group; a subject that
-     *        doesn't match fails subject building.
+     * @param identityRdnType RDN type selected from the client certificate's subject DN as the identity, e.g.
+     *        {@code CN}. A subject lacking that RDN fails subject building.
      * @param ldap LDAP connectivity and role-lookup configuration, shared with {@link LdapSaslSubjectBuilderService}.
      */
-    public record Config(String identityExtractionPattern, LdapRoleLookupConfig ldap) {
+    public record Config(String identityRdnType, LdapRoleLookupConfig ldap) {
         public Config {
-            RoleNameExtractor.validatePattern(identityExtractionPattern, "identityExtractionPattern");
+            CertificateIdentityExtractor.validateRdnType(identityRdnType, "identityRdnType");
             Objects.requireNonNull(ldap, "ldap must not be null");
         }
     }

@@ -27,7 +27,6 @@ final class RoleNameExtractor {
     /**
      * Validates that {@code regex} is non-blank, a valid regex, and has at least one capturing group.
      *
-     * @param regex the regex to validate.
      * @param fieldName name to use for {@code regex} in exception messages.
      */
     static void validatePattern(String regex, String fieldName) {

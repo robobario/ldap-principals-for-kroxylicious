@@ -13,27 +13,22 @@ class LdapTransportSubjectBuilderServiceConfigTest {
 
     @Test
     void acceptsAValidConfig() {
-        assertThatNoException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN=([^,]+),.*", ldapConfig()));
+        assertThatNoException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN", ldapConfig()));
     }
 
     @Test
-    void rejectsBlankIdentityExtractionPattern() {
+    void rejectsBlankIdentityRdnType() {
         assertThatIllegalArgumentException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config(" ", ldapConfig()));
     }
 
     @Test
-    void rejectsInvalidIdentityExtractionPattern() {
-        assertThatIllegalArgumentException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN=(([^,]+,.*", ldapConfig()));
-    }
-
-    @Test
-    void rejectsIdentityExtractionPatternWithoutACapturingGroup() {
-        assertThatIllegalArgumentException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN=[^,]+,.*", ldapConfig()));
+    void rejectsNullIdentityRdnType() {
+        assertThatIllegalArgumentException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config(null, ldapConfig()));
     }
 
     @Test
     void rejectsNullLdapConfig() {
-        assertThatNullPointerException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN=([^,]+),.*", null));
+        assertThatNullPointerException().isThrownBy(() -> new LdapTransportSubjectBuilderService.Config("CN", null));
     }
 
     private static LdapRoleLookupConfig ldapConfig() {

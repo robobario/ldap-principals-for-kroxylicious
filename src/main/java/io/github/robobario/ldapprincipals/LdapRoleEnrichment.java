@@ -20,9 +20,8 @@ import io.kroxylicious.proxy.authentication.SubjectBuildingException;
 import io.kroxylicious.proxy.authentication.User;
 
 /**
- * Builds a {@link Subject} for an already-authenticated identity by looking up its roles in LDAP.
- * Shared by the SASL and transport builder adapters: they differ only in how they establish the
- * identity, not in how a {@code Subject} is built from one.
+ * Builds a {@link Subject} for an authenticated identity by looking up its LDAP roles. Shared by the
+ * SASL and transport adapters, which differ only in how they establish the identity.
  */
 final class LdapRoleEnrichment implements AutoCloseable {
 

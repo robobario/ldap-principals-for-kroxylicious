@@ -118,7 +118,7 @@ class LdapMutualTlsLookupIT {
     @Test
     void enrichesSubjectWithRolesFromMemberOf(KafkaCluster cluster, Topic topic) throws Exception {
         var subjectBuilderConfig = new LdapTransportSubjectBuilderService.Config(
-                "CN=([^,]+),.*",
+                "CN",
                 new LdapRoleLookupConfig(
                         List.of("ldap://localhost:" + directoryServer.getListenPort()),
                         ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
@@ -126,7 +126,7 @@ class LdapMutualTlsLookupIT {
 
         var transportSubjectBuilder = new TransportSubjectBuilderDefinitionBuilder(LdapTransportSubjectBuilderService.class.getSimpleName())
                 .withConfig(Map.of(
-                        "identityExtractionPattern", subjectBuilderConfig.identityExtractionPattern(),
+                        "identityRdnType", subjectBuilderConfig.identityRdnType(),
                         "ldap", subjectBuilderConfig.ldap()))
                 .build();
 
