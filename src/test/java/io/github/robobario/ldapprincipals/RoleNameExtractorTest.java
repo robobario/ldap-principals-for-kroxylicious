@@ -33,4 +33,11 @@ class RoleNameExtractorTest {
 
         assertThat(extractor.extract("cn=kafka-admins,ou=groups,dc=example,dc=com")).contains("kafka-admins");
     }
+
+    @Test
+    void returnsEmptyWhenTheFirstGroupMatchesButDoesNotCapture() {
+        var extractor = new RoleNameExtractor("(cn=admins)?.*");
+
+        assertThat(extractor.extract("ou=people,dc=example,dc=com")).isEmpty();
+    }
 }

@@ -21,6 +21,6 @@ final class RoleNameExtractor {
         if (!matcher.matches()) {
             return Optional.empty();
         }
-        return Optional.of(matcher.group(1));
+        return Optional.ofNullable(matcher.group(1));
     }
 }
