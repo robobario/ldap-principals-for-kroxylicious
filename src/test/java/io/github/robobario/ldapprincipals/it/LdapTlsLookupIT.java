@@ -36,6 +36,7 @@ import io.github.robobario.ldapprincipals.LdapTrustStoreConfig;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.filter.sasl.inspection.SaslInspection;
 import io.kroxylicious.proxy.config.ConfigurationBuilder;
+import io.kroxylicious.proxy.config.secret.InlinePassword;
 import io.kroxylicious.testing.integration.config.NamedFilterDefinitionBuilder;
 import io.kroxylicious.testing.integration.tester.KroxyliciousConfigUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -133,7 +134,7 @@ class LdapTlsLookupIT {
             @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
         var subjectBuilderConfig = new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldaps://localhost:" + directoryServer.getListenPort(LDAPS_LISTENER), false, trustStoreConfig())),
-                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false);
 
         String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, subjectBuilderConfig);
@@ -147,7 +148,7 @@ class LdapTlsLookupIT {
             @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
         var subjectBuilderConfig = new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(STARTTLS_LISTENER), true, trustStoreConfig())),
-                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false);
 
         String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, subjectBuilderConfig);

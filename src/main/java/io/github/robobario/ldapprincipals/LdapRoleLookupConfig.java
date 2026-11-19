@@ -1,8 +1,11 @@
 package io.github.robobario.ldapprincipals;
 
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+
+import io.kroxylicious.proxy.config.secret.PasswordProvider;
 
 /**
  * Shared LDAP connectivity and role-lookup configuration, used by both {@link LdapSaslSubjectBuilderService}
@@ -10,7 +13,9 @@ import java.util.Objects;
  *
  * @param servers LDAP servers, tried in order until one succeeds. Each carries its own URI and TLS settings.
  * @param bindDn DN of the service account used to query LDAP.
- * @param bindPassword password of the service account. Supplied inline; file-based secret sources are not yet supported.
+ * @param bindPassword password of the service account, as a kroxylicious {@link PasswordProvider}: inline
+ *        (dev) or file-based (prod). Resolved eagerly once at config-load time to fail fast on a bad source,
+ *        then re-resolved per connection so a rotated secret file takes effect without a restart.
  * @param searchBase base DN under which the identity's entry is searched for.
  * @param searchFilterTemplate search filter containing a {@code {0}} placeholder for the identity,
  *        e.g. {@code (uid={0})}. The identity is escaped before substitution.
@@ -29,7 +34,7 @@ import java.util.Objects;
 public record LdapRoleLookupConfig(
         List<LdapServerConfig> servers,
         String bindDn,
-        String bindPassword,
+        PasswordProvider bindPassword,
         String searchBase,
         String searchFilterTemplate,
         String memberOfAttribute,
@@ -55,6 +60,7 @@ public record LdapRoleLookupConfig(
         });
         requireNonBlank(bindDn, "bindDn");
         Objects.requireNonNull(bindPassword, "bindPassword must not be null");
+        validateResolvable(bindPassword);
         requireNonBlank(searchBase, "searchBase");
         requireNonBlank(searchFilterTemplate, "searchFilterTemplate");
         if (!searchFilterTemplate.contains(IDENTITY_PLACEHOLDER)) {
@@ -76,6 +82,17 @@ public record LdapRoleLookupConfig(
     private static void requireNonBlank(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");
+        }
+    }
+
+    private static void validateResolvable(PasswordProvider bindPassword) {
+        try {
+            if (bindPassword.getProvidedPassword() == null) {
+                throw new IllegalArgumentException("bindPassword resolved to no value");
+            }
+        }
+        catch (UncheckedIOException e) {
+            throw new IllegalArgumentException("Unable to resolve bindPassword: " + e.getMessage(), e);
         }
     }
 

@@ -26,6 +26,7 @@ import io.github.robobario.ldapprincipals.LdapRoleLookupConfig;
 import io.github.robobario.ldapprincipals.LdapServerConfig;
 import io.github.robobario.ldapprincipals.LdapTransportSubjectBuilderService;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
+import io.kroxylicious.proxy.config.secret.InlinePassword;
 import io.kroxylicious.proxy.config.tls.TlsClientAuth;
 import io.kroxylicious.testing.integration.config.NamedFilterDefinitionBuilder;
 import io.kroxylicious.testing.integration.config.TransportSubjectBuilderDefinitionBuilder;
@@ -122,7 +123,7 @@ class LdapMutualTlsLookupIT {
                 "CN",
                 new LdapRoleLookupConfig(
                         List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
-                        ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                        ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                         OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, true));
 
         var transportSubjectBuilder = new TransportSubjectBuilderDefinitionBuilder(LdapTransportSubjectBuilderService.class.getSimpleName())

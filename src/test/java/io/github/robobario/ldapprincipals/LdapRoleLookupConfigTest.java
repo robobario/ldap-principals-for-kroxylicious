@@ -1,9 +1,16 @@
 package io.github.robobario.ldapprincipals;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import io.kroxylicious.proxy.config.secret.FilePassword;
+import io.kroxylicious.proxy.config.secret.InlinePassword;
+import io.kroxylicious.proxy.config.secret.PasswordProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -107,11 +114,26 @@ class LdapRoleLookupConfigTest {
     }
 
     @Test
-    void toStringDoesNotLeakBindPassword() {
-        var config = new ConfigBuilder();
-        config.bindPassword = "super-secret";
+    void acceptsFileBasedBindPassword(@TempDir Path dir) throws Exception {
+        Path passwordFile = Files.writeString(dir.resolve("bind.pw"), "file-secret");
 
-        assertThat(config.build().toString()).doesNotContain("super-secret");
+        var config = validConfig().bindPassword(new FilePassword(passwordFile.toString())).build();
+
+        assertThat(config.bindPassword().getProvidedPassword()).isEqualTo("file-secret");
+    }
+
+    @Test
+    void rejectsFileBasedBindPasswordWithMissingFile() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validConfig().bindPassword(new FilePassword("/no/such/bind.pw")).build())
+                .withMessageContaining("bindPassword");
+    }
+
+    @Test
+    void toStringDoesNotLeakBindPassword() {
+        var config = validConfig().bindPassword(new InlinePassword("super-secret")).build();
+
+        assertThat(config.toString()).doesNotContain("super-secret");
     }
 
     private static ConfigBuilder validConfig() {
@@ -126,7 +148,7 @@ class LdapRoleLookupConfigTest {
     private static final class ConfigBuilder {
         private List<LdapServerConfig> servers = List.of(new LdapServerConfig("ldaps://directory.example.com:636", false, null));
         private String bindDn = "cn=kroxylicious,dc=example,dc=com";
-        private String bindPassword = "secret";
+        private PasswordProvider bindPassword = new InlinePassword("secret");
         private String searchBase = "ou=people,dc=example,dc=com";
         private String searchFilterTemplate = "(uid={0})";
         private String memberOfAttribute = "memberOf";
@@ -143,6 +165,11 @@ class LdapRoleLookupConfigTest {
 
         ConfigBuilder bindDn(String bindDn) {
             this.bindDn = bindDn;
+            return this;
+        }
+
+        ConfigBuilder bindPassword(PasswordProvider bindPassword) {
+            this.bindPassword = bindPassword;
             return this;
         }
 

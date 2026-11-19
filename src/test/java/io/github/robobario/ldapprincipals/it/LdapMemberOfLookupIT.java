@@ -28,6 +28,7 @@ import io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.filter.sasl.inspection.SaslInspection;
 import io.kroxylicious.proxy.config.ConfigurationBuilder;
+import io.kroxylicious.proxy.config.secret.InlinePassword;
 import io.kroxylicious.testing.integration.config.NamedFilterDefinitionBuilder;
 import io.kroxylicious.testing.integration.tester.KroxyliciousConfigUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -151,21 +152,21 @@ class LdapMemberOfLookupIT {
     private static LdapRoleLookupConfig memberOfConfig(OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
-                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofSeconds(5), 2, true);
     }
 
     private static LdapRoleLookupConfig unreachableConfig(OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://localhost:1", false, null)),
-                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofSeconds(2), 2, true);
     }
 
     private static LdapRoleLookupConfig hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://localhost:" + blackhole.getLocalPort(), false, null)),
-                ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
+                ADMIN_DN, new InlinePassword(ADMIN_PASSWORD), PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
                 onLookupFailure, Duration.ofMillis(300), 2, true);
     }
 

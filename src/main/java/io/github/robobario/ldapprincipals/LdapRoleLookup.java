@@ -17,6 +17,8 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 
+import io.kroxylicious.proxy.config.secret.PasswordProvider;
+
 /**
  * Looks up the raw {@code memberOf} values of an identity against a directory, trying each
  * configured server URI in turn. Returns raw LDAP values (typically group DNs); mapping them
@@ -26,7 +28,7 @@ final class LdapRoleLookup implements RoleLookup {
 
     private final List<Server> servers;
     private final String bindDn;
-    private final String bindPassword;
+    private final PasswordProvider bindPassword;
     private final String searchBase;
     private final String searchFilterTemplate;
     private final String memberOfAttribute;
@@ -69,7 +71,7 @@ final class LdapRoleLookup implements RoleLookup {
             connectionConfig.setTrustManagers(server.trustManagers());
         }
         try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
-            connection.bind(bindDn, bindPassword);
+            connection.bind(bindDn, bindPassword.getProvidedPassword());
             String filter = searchFilterTemplate.replace(
                     LdapRoleLookupConfig.IDENTITY_PLACEHOLDER, FilterEncoder.encodeFilterValue(identity));
             try (EntryCursor cursor = connection.search(searchBase, filter, SearchScope.SUBTREE, memberOfAttribute)) {

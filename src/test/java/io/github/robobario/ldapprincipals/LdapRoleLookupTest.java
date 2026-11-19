@@ -11,6 +11,8 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
+import io.kroxylicious.proxy.config.secret.InlinePassword;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -90,7 +92,7 @@ class LdapRoleLookupTest {
         return new LdapRoleLookup(new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
                 ADMIN_DN,
-                ADMIN_PASSWORD,
+                new InlinePassword(ADMIN_PASSWORD),
                 PEOPLE_DN,
                 "(uid={0})",
                 "memberOf",
