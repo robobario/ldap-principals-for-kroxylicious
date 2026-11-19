@@ -13,6 +13,7 @@ import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.filter.FilterEncoder;
 import org.apache.directory.api.ldap.model.message.SearchScope;
+import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 
 /**
@@ -28,6 +29,7 @@ final class LdapRoleLookup implements RoleLookup {
     private final String searchBase;
     private final String searchFilterTemplate;
     private final String memberOfAttribute;
+    private final long timeoutMillis;
 
     LdapRoleLookup(LdapSaslSubjectBuilderService.Config config) {
         this.serverUris = config.serverUris();
@@ -36,6 +38,7 @@ final class LdapRoleLookup implements RoleLookup {
         this.searchBase = config.searchBase();
         this.searchFilterTemplate = config.searchFilterTemplate();
         this.memberOfAttribute = config.memberOfAttribute();
+        this.timeoutMillis = config.lookupTimeout().toMillis();
     }
 
     @Override
@@ -56,7 +59,11 @@ final class LdapRoleLookup implements RoleLookup {
     private List<String> lookupRoles(String serverUri, String identity) throws LdapException, CursorException, IOException {
         URI uri = URI.create(serverUri);
         int port = uri.getPort() == -1 ? 389 : uri.getPort();
-        try (LdapNetworkConnection connection = new LdapNetworkConnection(uri.getHost(), port)) {
+        LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
+        connectionConfig.setLdapHost(uri.getHost());
+        connectionConfig.setLdapPort(port);
+        connectionConfig.setTimeout(timeoutMillis);
+        try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
             connection.bind(bindDn, bindPassword);
             String filter = searchFilterTemplate.replace(
                     LdapSaslSubjectBuilderService.Config.IDENTITY_PLACEHOLDER, FilterEncoder.encodeFilterValue(identity));

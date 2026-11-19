@@ -63,6 +63,14 @@ class LdapSaslSubjectBuilderServiceConfigTest {
         assertThatIllegalArgumentException().isThrownBy(() -> validConfig().executorPoolSize(0).build());
     }
 
+    @Test
+    void toStringDoesNotLeakBindPassword() {
+        var config = new ConfigBuilder();
+        config.bindPassword = "super-secret";
+
+        assertThat(config.build().toString()).doesNotContain("super-secret");
+    }
+
     private static ConfigBuilder validConfig() {
         return new ConfigBuilder();
     }

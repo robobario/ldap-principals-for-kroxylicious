@@ -111,5 +111,12 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
                 throw new IllegalArgumentException(fieldName + " must not be blank");
             }
         }
+
+        @Override
+        public String toString() {
+            return "Config[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
+                    + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
+                    + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + "]";
+        }
     }
 }
