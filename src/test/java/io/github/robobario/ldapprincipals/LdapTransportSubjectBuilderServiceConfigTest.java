@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.kroxylicious.proxy.config.secret.InlinePassword;
+
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
@@ -35,7 +37,7 @@ class LdapTransportSubjectBuilderServiceConfigTest {
         return new LdapRoleLookupConfig(
                 List.of(new LdapServerConfig("ldap://directory.example.com:389", false, null)),
                 "cn=kroxylicious,dc=example,dc=com",
-                "secret",
+                new InlinePassword("secret"),
                 "ou=people,dc=example,dc=com",
                 "(uid={0})",
                 "memberOf",
