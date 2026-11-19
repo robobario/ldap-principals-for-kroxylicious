@@ -97,6 +97,9 @@ class LdapRoleLookupTest {
                 "cn=([^,]+),.*",
                 OnLookupFailure.FAIL,
                 Duration.ofSeconds(5),
-                2));
+                2,
+                false,
+                true,
+                null));
     }
 }

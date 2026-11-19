@@ -151,21 +151,21 @@ class LdapMemberOfLookupIT {
         return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:" + directoryServer.getListenPort()),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofSeconds(5), 2);
+                onLookupFailure, Duration.ofSeconds(5), 2, false, true, null);
     }
 
     private static LdapRoleLookupConfig unreachableConfig(OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:1"),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofSeconds(2), 2);
+                onLookupFailure, Duration.ofSeconds(2), 2, false, true, null);
     }
 
     private static LdapRoleLookupConfig hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
                 List.of("ldap://localhost:" + blackhole.getLocalPort()),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofMillis(300), 2);
+                onLookupFailure, Duration.ofMillis(300), 2, false, true, null);
     }
 
     /** Accepts connections but never replies, so a client hangs until its own lookup timeout fires. */

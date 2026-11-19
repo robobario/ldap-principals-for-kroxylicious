@@ -5,6 +5,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.net.ssl.TrustManager;
+
 import org.apache.directory.api.ldap.model.cursor.CursorException;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.Attribute;
@@ -30,6 +32,8 @@ final class LdapRoleLookup implements RoleLookup {
     private final String searchFilterTemplate;
     private final String memberOfAttribute;
     private final long timeoutMillis;
+    private final boolean startTls;
+    private final TrustManager[] trustManagers;
 
     LdapRoleLookup(LdapRoleLookupConfig config) {
         this.serverUris = config.serverUris();
@@ -39,6 +43,8 @@ final class LdapRoleLookup implements RoleLookup {
         this.searchFilterTemplate = config.searchFilterTemplate();
         this.memberOfAttribute = config.memberOfAttribute();
         this.timeoutMillis = config.lookupTimeout().toMillis();
+        this.startTls = config.startTls();
+        this.trustManagers = config.trustStore() == null ? null : config.trustStore().toTrustManagers();
     }
 
     @Override
@@ -58,11 +64,18 @@ final class LdapRoleLookup implements RoleLookup {
 
     private List<String> lookupRoles(String serverUri, String identity) throws LdapException, CursorException, IOException {
         URI uri = URI.create(serverUri);
-        int port = uri.getPort() == -1 ? 389 : uri.getPort();
+        boolean useSsl = "ldaps".equals(uri.getScheme());
+        int port = uri.getPort() != -1 ? uri.getPort() : useSsl ? 636 : 389;
         LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
         connectionConfig.setLdapHost(uri.getHost());
         connectionConfig.setLdapPort(port);
         connectionConfig.setTimeout(timeoutMillis);
+        connectionConfig.setUseSsl(useSsl);
+        connectionConfig.setUseTls(startTls);
+        connectionConfig.setSslEndpointIdentificationAlgorithm("LDAPS");
+        if (trustManagers != null) {
+            connectionConfig.setTrustManagers(trustManagers);
+        }
         try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
             connection.bind(bindDn, bindPassword);
             String filter = searchFilterTemplate.replace(

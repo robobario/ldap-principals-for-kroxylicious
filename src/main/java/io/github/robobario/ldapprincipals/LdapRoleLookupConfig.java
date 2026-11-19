@@ -9,7 +9,8 @@ import java.util.Objects;
  * Shared LDAP connectivity and role-lookup configuration, used by both {@link LdapSaslSubjectBuilderService}
  * and {@link LdapTransportSubjectBuilderService}.
  *
- * @param serverUris LDAP server URIs ({@code ldap://host:port}), tried in order until one succeeds.
+ * @param serverUris LDAP server URIs ({@code ldap://host:port} or {@code ldaps://host:port}), tried in order
+ *        until one succeeds.
  * @param bindDn DN of the service account used to query LDAP.
  * @param bindPassword password of the service account. Supplied inline; file-based secret sources are not yet supported.
  * @param searchBase base DN under which the identity's entry is searched for.
@@ -24,6 +25,12 @@ import java.util.Objects;
  *        privilege-escalation risk of the permissive option.
  * @param lookupTimeout maximum time to wait for a lookup to complete.
  * @param executorPoolSize size of the dedicated executor LDAP operations run on.
+ * @param startTls upgrade an {@code ldap://} connection to TLS via the StartTLS extended operation. Not valid
+ *        together with an {@code ldaps://} server URI, which is already TLS.
+ * @param allowPlaintextLdap explicit opt-in to connect to an {@code ldap://} server URI without {@code startTls}.
+ *        Without this flag, a plaintext {@code ldap://} server URI is rejected at config-load time.
+ * @param trustStore truststore used to validate the LDAP server's certificate, e.g. for a private CA. {@code null}
+ *        to use the JVM's default truststore. Ignored when every server URI is plaintext {@code ldap://}.
  */
 public record LdapRoleLookupConfig(
         List<String> serverUris,
@@ -35,7 +42,10 @@ public record LdapRoleLookupConfig(
         String roleNameExtractionPattern,
         OnLookupFailure onLookupFailure,
         Duration lookupTimeout,
-        int executorPoolSize) {
+        int executorPoolSize,
+        boolean startTls,
+        boolean allowPlaintextLdap,
+        LdapTrustStoreConfig trustStore) {
 
     static final String IDENTITY_PLACEHOLDER = "{0}";
     private static final String DEFAULT_MEMBER_OF_ATTRIBUTE = "memberOf";
@@ -45,7 +55,7 @@ public record LdapRoleLookupConfig(
             throw new IllegalArgumentException("serverUris must not be empty");
         }
         serverUris = List.copyOf(serverUris);
-        serverUris.forEach(LdapRoleLookupConfig::validateServerUri);
+        serverUris.forEach(uri -> validateServerUri(uri, startTls, allowPlaintextLdap));
         requireNonBlank(bindDn, "bindDn");
         Objects.requireNonNull(bindPassword, "bindPassword must not be null");
         requireNonBlank(searchBase, "searchBase");
@@ -66,7 +76,7 @@ public record LdapRoleLookupConfig(
         }
     }
 
-    private static void validateServerUri(String serverUri) {
+    private static void validateServerUri(String serverUri, boolean startTls, boolean allowPlaintextLdap) {
         URI uri;
         try {
             uri = URI.create(serverUri);
@@ -74,9 +84,22 @@ public record LdapRoleLookupConfig(
         catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid LDAP server URI '" + serverUri + "'", e);
         }
-        if (!"ldap".equals(uri.getScheme())) {
+        String scheme = uri.getScheme();
+        if ("ldaps".equals(scheme)) {
+            if (startTls) {
+                throw new IllegalArgumentException(
+                        "startTls cannot be used with 'ldaps://' server URI '" + serverUri + "': ldaps:// already establishes TLS");
+            }
+        }
+        else if ("ldap".equals(scheme)) {
+            if (!startTls && !allowPlaintextLdap) {
+                throw new IllegalArgumentException(
+                        "Plaintext server URI '" + serverUri + "' requires either startTls or allowPlaintextLdap to be set");
+            }
+        }
+        else {
             throw new IllegalArgumentException(
-                    "Unsupported scheme in server URI '" + serverUri + "': only 'ldap://' is supported until TLS support is added");
+                    "Unsupported scheme in server URI '" + serverUri + "': only 'ldap://' and 'ldaps://' are supported");
         }
         if (uri.getHost() == null) {
             throw new IllegalArgumentException("Server URI '" + serverUri + "' is missing a host");
@@ -94,6 +117,7 @@ public record LdapRoleLookupConfig(
         return "LdapRoleLookupConfig[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
                 + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
                 + ", roleNameExtractionPattern=" + roleNameExtractionPattern + ", onLookupFailure=" + onLookupFailure
-                + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + "]";
+                + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + ", startTls=" + startTls
+                + ", allowPlaintextLdap=" + allowPlaintextLdap + ", trustStore=" + trustStore + "]";
     }
 }

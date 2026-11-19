@@ -22,13 +22,35 @@ class LdapRoleLookupConfigTest {
     }
 
     @Test
-    void rejectsNonLdapScheme() {
-        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldaps://directory.example.com:636")).build());
+    void rejectsUnsupportedScheme() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("http://directory.example.com:389")).build());
     }
 
     @Test
     void rejectsServerUriWithoutHost() {
         assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldap:///")).build());
+    }
+
+    @Test
+    void rejectsPlaintextLdapWithoutOptIn() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().allowPlaintextLdap(false).build());
+    }
+
+    @Test
+    void acceptsPlaintextLdapWithStartTls() {
+        assertThatNoException().isThrownBy(() -> validConfig().allowPlaintextLdap(false).startTls(true).build());
+    }
+
+    @Test
+    void acceptsLdapsWithoutOptIn() {
+        assertThatNoException().isThrownBy(
+                () -> validConfig().serverUris(List.of("ldaps://directory.example.com:636")).allowPlaintextLdap(false).build());
+    }
+
+    @Test
+    void rejectsStartTlsWithLdapsScheme() {
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> validConfig().serverUris(List.of("ldaps://directory.example.com:636")).startTls(true).build());
     }
 
     @Test
@@ -116,6 +138,9 @@ class LdapRoleLookupConfigTest {
         private OnLookupFailure onLookupFailure = OnLookupFailure.FAIL;
         private Duration lookupTimeout = Duration.ofSeconds(5);
         private int executorPoolSize = 4;
+        private boolean startTls = false;
+        private boolean allowPlaintextLdap = true;
+        private LdapTrustStoreConfig trustStore = null;
 
         ConfigBuilder serverUris(List<String> serverUris) {
             this.serverUris = serverUris;
@@ -162,10 +187,20 @@ class LdapRoleLookupConfigTest {
             return this;
         }
 
+        ConfigBuilder startTls(boolean startTls) {
+            this.startTls = startTls;
+            return this;
+        }
+
+        ConfigBuilder allowPlaintextLdap(boolean allowPlaintextLdap) {
+            this.allowPlaintextLdap = allowPlaintextLdap;
+            return this;
+        }
+
         LdapRoleLookupConfig build() {
             return new LdapRoleLookupConfig(
                     serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, roleNameExtractionPattern,
-                    onLookupFailure, lookupTimeout, executorPoolSize);
+                    onLookupFailure, lookupTimeout, executorPoolSize, startTls, allowPlaintextLdap, trustStore);
         }
     }
 }

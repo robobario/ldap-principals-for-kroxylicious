@@ -122,7 +122,7 @@ class LdapMutualTlsLookupIT {
                 new LdapRoleLookupConfig(
                         List.of("ldap://localhost:" + directoryServer.getListenPort()),
                         ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                        OnLookupFailure.FAIL, Duration.ofSeconds(5), 2));
+                        OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false, true, null));
 
         var transportSubjectBuilder = new TransportSubjectBuilderDefinitionBuilder(LdapTransportSubjectBuilderService.class.getSimpleName())
                 .withConfig(Map.of(

@@ -42,6 +42,9 @@ class LdapTransportSubjectBuilderServiceConfigTest {
                 "cn=([^,]+),.*",
                 OnLookupFailure.FAIL,
                 Duration.ofSeconds(5),
-                4);
+                4,
+                false,
+                true,
+                null);
     }
 }
