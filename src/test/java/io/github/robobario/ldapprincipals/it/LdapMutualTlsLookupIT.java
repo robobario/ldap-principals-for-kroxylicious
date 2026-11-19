@@ -23,6 +23,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
 import io.github.robobario.ldapprincipals.LdapRoleLookupConfig;
+import io.github.robobario.ldapprincipals.LdapServerConfig;
 import io.github.robobario.ldapprincipals.LdapTransportSubjectBuilderService;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.proxy.config.tls.TlsClientAuth;
@@ -120,9 +121,9 @@ class LdapMutualTlsLookupIT {
         var subjectBuilderConfig = new LdapTransportSubjectBuilderService.Config(
                 "CN",
                 new LdapRoleLookupConfig(
-                        List.of("ldap://localhost:" + directoryServer.getListenPort()),
+                        List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
                         ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                        OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false, true, null));
+                        OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, true));
 
         var transportSubjectBuilder = new TransportSubjectBuilderDefinitionBuilder(LdapTransportSubjectBuilderService.class.getSimpleName())
                 .withConfig(Map.of(

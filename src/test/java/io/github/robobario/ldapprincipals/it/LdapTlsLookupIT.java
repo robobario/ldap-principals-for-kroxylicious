@@ -30,6 +30,7 @@ import com.unboundid.ldap.listener.InMemoryListenerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
 import io.github.robobario.ldapprincipals.LdapRoleLookupConfig;
+import io.github.robobario.ldapprincipals.LdapServerConfig;
 import io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService;
 import io.github.robobario.ldapprincipals.LdapTrustStoreConfig;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
@@ -131,9 +132,9 @@ class LdapTlsLookupIT {
     void enrichesSubjectWithRolesFromMemberOfOverLdaps(@SaslMechanism(value = "PLAIN", principals = {
             @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
         var subjectBuilderConfig = new LdapRoleLookupConfig(
-                List.of("ldaps://localhost:" + directoryServer.getListenPort(LDAPS_LISTENER)),
+                List.of(new LdapServerConfig("ldaps://localhost:" + directoryServer.getListenPort(LDAPS_LISTENER), false, trustStoreConfig())),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false, false, trustStoreConfig());
+                OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false);
 
         String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, subjectBuilderConfig);
 
@@ -145,9 +146,9 @@ class LdapTlsLookupIT {
     void enrichesSubjectWithRolesFromMemberOfOverStartTls(@SaslMechanism(value = "PLAIN", principals = {
             @SaslMechanism.Principal(user = "alice", password = "alice-secret") }) KafkaCluster cluster, Topic topic) throws Exception {
         var subjectBuilderConfig = new LdapRoleLookupConfig(
-                List.of("ldap://localhost:" + directoryServer.getListenPort(STARTTLS_LISTENER)),
+                List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(STARTTLS_LISTENER), true, trustStoreConfig())),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, true, false, trustStoreConfig());
+                OnLookupFailure.FAIL, Duration.ofSeconds(5), 2, false);
 
         String encodedSubject = produceAndCaptureEncodedSubject(cluster, topic, subjectBuilderConfig);
 

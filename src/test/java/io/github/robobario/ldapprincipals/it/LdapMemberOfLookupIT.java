@@ -23,6 +23,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 
 import io.github.robobario.ldapprincipals.LdapRoleLookupConfig;
+import io.github.robobario.ldapprincipals.LdapServerConfig;
 import io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService;
 import io.github.robobario.ldapprincipals.OnLookupFailure;
 import io.kroxylicious.filter.sasl.inspection.SaslInspection;
@@ -149,23 +150,23 @@ class LdapMemberOfLookupIT {
 
     private static LdapRoleLookupConfig memberOfConfig(OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
-                List.of("ldap://localhost:" + directoryServer.getListenPort()),
+                List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofSeconds(5), 2, false, true, null);
+                onLookupFailure, Duration.ofSeconds(5), 2, true);
     }
 
     private static LdapRoleLookupConfig unreachableConfig(OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
-                List.of("ldap://localhost:1"),
+                List.of(new LdapServerConfig("ldap://localhost:1", false, null)),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofSeconds(2), 2, false, true, null);
+                onLookupFailure, Duration.ofSeconds(2), 2, true);
     }
 
     private static LdapRoleLookupConfig hungConfig(ServerSocket blackhole, OnLookupFailure onLookupFailure) {
         return new LdapRoleLookupConfig(
-                List.of("ldap://localhost:" + blackhole.getLocalPort()),
+                List.of(new LdapServerConfig("ldap://localhost:" + blackhole.getLocalPort(), false, null)),
                 ADMIN_DN, ADMIN_PASSWORD, PEOPLE_DN, "(uid={0})", "memberOf", "cn=([^,]+),.*",
-                onLookupFailure, Duration.ofMillis(300), 2, false, true, null);
+                onLookupFailure, Duration.ofMillis(300), 2, true);
     }
 
     /** Accepts connections but never replies, so a client hangs until its own lookup timeout fires. */

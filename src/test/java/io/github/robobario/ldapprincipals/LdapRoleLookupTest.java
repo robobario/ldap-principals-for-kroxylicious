@@ -88,7 +88,7 @@ class LdapRoleLookupTest {
 
     private static LdapRoleLookup lookup() {
         return new LdapRoleLookup(new LdapRoleLookupConfig(
-                List.of("ldap://localhost:" + directoryServer.getListenPort()),
+                List.of(new LdapServerConfig("ldap://localhost:" + directoryServer.getListenPort(), false, null)),
                 ADMIN_DN,
                 ADMIN_PASSWORD,
                 PEOPLE_DN,
@@ -98,8 +98,6 @@ class LdapRoleLookupTest {
                 OnLookupFailure.FAIL,
                 Duration.ofSeconds(5),
                 2,
-                false,
-                true,
-                null));
+                true));
     }
 }

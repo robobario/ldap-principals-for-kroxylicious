@@ -1,6 +1,5 @@
 package io.github.robobario.ldapprincipals;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -9,8 +8,7 @@ import java.util.Objects;
  * Shared LDAP connectivity and role-lookup configuration, used by both {@link LdapSaslSubjectBuilderService}
  * and {@link LdapTransportSubjectBuilderService}.
  *
- * @param serverUris LDAP server URIs ({@code ldap://host:port} or {@code ldaps://host:port}), tried in order
- *        until one succeeds.
+ * @param servers LDAP servers, tried in order until one succeeds. Each carries its own URI and TLS settings.
  * @param bindDn DN of the service account used to query LDAP.
  * @param bindPassword password of the service account. Supplied inline; file-based secret sources are not yet supported.
  * @param searchBase base DN under which the identity's entry is searched for.
@@ -25,15 +23,11 @@ import java.util.Objects;
  *        privilege-escalation risk of the permissive option.
  * @param lookupTimeout maximum time to wait for a lookup to complete.
  * @param executorPoolSize size of the dedicated executor LDAP operations run on.
- * @param startTls upgrade an {@code ldap://} connection to TLS via the StartTLS extended operation. Not valid
- *        together with an {@code ldaps://} server URI, which is already TLS.
- * @param allowPlaintextLdap explicit opt-in to connect to an {@code ldap://} server URI without {@code startTls}.
- *        Without this flag, a plaintext {@code ldap://} server URI is rejected at config-load time.
- * @param trustStore truststore used to validate the LDAP server's certificate, e.g. for a private CA. {@code null}
- *        to use the JVM's default truststore. Ignored when every server URI is plaintext {@code ldap://}.
+ * @param allowPlaintextLdap global opt-in to connect to any {@code ldap://} server without {@code startTls}.
+ *        Without this flag, a plaintext server is rejected at config-load time.
  */
 public record LdapRoleLookupConfig(
-        List<String> serverUris,
+        List<LdapServerConfig> servers,
         String bindDn,
         String bindPassword,
         String searchBase,
@@ -43,19 +37,22 @@ public record LdapRoleLookupConfig(
         OnLookupFailure onLookupFailure,
         Duration lookupTimeout,
         int executorPoolSize,
-        boolean startTls,
-        boolean allowPlaintextLdap,
-        LdapTrustStoreConfig trustStore) {
+        boolean allowPlaintextLdap) {
 
     static final String IDENTITY_PLACEHOLDER = "{0}";
     private static final String DEFAULT_MEMBER_OF_ATTRIBUTE = "memberOf";
 
     public LdapRoleLookupConfig {
-        if (serverUris == null || serverUris.isEmpty()) {
-            throw new IllegalArgumentException("serverUris must not be empty");
+        if (servers == null || servers.isEmpty()) {
+            throw new IllegalArgumentException("servers must not be empty");
         }
-        serverUris = List.copyOf(serverUris);
-        serverUris.forEach(uri -> validateServerUri(uri, startTls, allowPlaintextLdap));
+        servers = List.copyOf(servers);
+        servers.forEach(server -> {
+            if (server.isPlaintext() && !allowPlaintextLdap) {
+                throw new IllegalArgumentException(
+                        "Plaintext server URI '" + server.uri() + "' requires either startTls or allowPlaintextLdap to be set");
+            }
+        });
         requireNonBlank(bindDn, "bindDn");
         Objects.requireNonNull(bindPassword, "bindPassword must not be null");
         requireNonBlank(searchBase, "searchBase");
@@ -76,36 +73,6 @@ public record LdapRoleLookupConfig(
         }
     }
 
-    private static void validateServerUri(String serverUri, boolean startTls, boolean allowPlaintextLdap) {
-        URI uri;
-        try {
-            uri = URI.create(serverUri);
-        }
-        catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid LDAP server URI '" + serverUri + "'", e);
-        }
-        String scheme = uri.getScheme();
-        if ("ldaps".equals(scheme)) {
-            if (startTls) {
-                throw new IllegalArgumentException(
-                        "startTls cannot be used with 'ldaps://' server URI '" + serverUri + "': ldaps:// already establishes TLS");
-            }
-        }
-        else if ("ldap".equals(scheme)) {
-            if (!startTls && !allowPlaintextLdap) {
-                throw new IllegalArgumentException(
-                        "Plaintext server URI '" + serverUri + "' requires either startTls or allowPlaintextLdap to be set");
-            }
-        }
-        else {
-            throw new IllegalArgumentException(
-                    "Unsupported scheme in server URI '" + serverUri + "': only 'ldap://' and 'ldaps://' are supported");
-        }
-        if (uri.getHost() == null) {
-            throw new IllegalArgumentException("Server URI '" + serverUri + "' is missing a host");
-        }
-    }
-
     private static void requireNonBlank(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");
@@ -114,10 +81,10 @@ public record LdapRoleLookupConfig(
 
     @Override
     public String toString() {
-        return "LdapRoleLookupConfig[serverUris=" + serverUris + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
+        return "LdapRoleLookupConfig[servers=" + servers + ", bindDn=" + bindDn + ", bindPassword=***, searchBase=" + searchBase
                 + ", searchFilterTemplate=" + searchFilterTemplate + ", memberOfAttribute=" + memberOfAttribute
                 + ", roleNameExtractionPattern=" + roleNameExtractionPattern + ", onLookupFailure=" + onLookupFailure
-                + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize + ", startTls=" + startTls
-                + ", allowPlaintextLdap=" + allowPlaintextLdap + ", trustStore=" + trustStore + "]";
+                + ", lookupTimeout=" + lookupTimeout + ", executorPoolSize=" + executorPoolSize
+                + ", allowPlaintextLdap=" + allowPlaintextLdap + "]";
     }
 }
