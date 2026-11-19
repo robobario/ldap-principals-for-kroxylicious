@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>ldap-principals-for-kroxylicious</name>
-    <description>augment your kroxylicious Subject with LDAP Principals like Role</description>
+    <description>LDAP-backed role enrichment for kroxylicious Subject builders.</description>
     <url>https://github.com/robobario/ldap-principals-for-kroxylicious</url>
     <inceptionYear>2026</inceptionYear>
 
@@ -47,6 +47,8 @@
 
         <junit.version>5.14.4</junit.version>
         <assertj-core.version>3.27.7</assertj-core.version>
+        <mockito.version>5.24.0</mockito.version>
+        <kroxylicious-api.version>0.26.0</kroxylicious-api.version>
 
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.6.1</maven-surefire-plugin.version>
@@ -71,6 +73,13 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.kroxylicious</groupId>
+            <artifactId>kroxylicious-api</artifactId>
+            <version>${kroxylicious-api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -79,6 +88,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>${assertj-core.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
