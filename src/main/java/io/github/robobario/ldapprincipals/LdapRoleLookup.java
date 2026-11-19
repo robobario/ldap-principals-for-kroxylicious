@@ -72,6 +72,10 @@ final class LdapRoleLookup implements RoleLookup {
                     return List.of();
                 }
                 Entry entry = cursor.get();
+                if (cursor.next()) {
+                    throw new LdapRoleLookupException(
+                            "Search filter matched more than one entry for identity '" + identity + "'", null);
+                }
                 Attribute attribute = entry.get(memberOfAttribute);
                 if (attribute == null) {
                     return List.of();

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilder;
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilderService;
@@ -25,8 +27,17 @@ public class LdapSaslSubjectBuilderService implements SaslSubjectBuilderService<
     @Override
     public void initialize(Config config) {
         this.roleLookup = new LdapRoleLookup(config);
-        this.executor = Executors.newFixedThreadPool(config.executorPoolSize());
+        this.executor = Executors.newFixedThreadPool(config.executorPoolSize(), namedThreadFactory());
         this.lookupTimeout = config.lookupTimeout();
+    }
+
+    private static ThreadFactory namedThreadFactory() {
+        var counter = new AtomicInteger();
+        return runnable -> {
+            var thread = new Thread(runnable, "ldap-role-lookup-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 
     @Override
