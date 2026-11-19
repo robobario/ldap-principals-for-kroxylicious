@@ -1,0 +1,121 @@
+package io.github.robobario.ldapprincipals;
+
+import java.time.Duration;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+
+class LdapSaslSubjectBuilderServiceConfigTest {
+
+    @Test
+    void acceptsAValidConfig() {
+        assertThatNoException().isThrownBy(() -> validConfig().build());
+    }
+
+    @Test
+    void rejectsEmptyServerUris() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of()).build());
+    }
+
+    @Test
+    void rejectsNonLdapScheme() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldaps://directory.example.com:636")).build());
+    }
+
+    @Test
+    void rejectsServerUriWithoutHost() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().serverUris(List.of("ldap:///")).build());
+    }
+
+    @Test
+    void rejectsBlankBindDn() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().bindDn(" ").build());
+    }
+
+    @Test
+    void rejectsBlankSearchBase() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().searchBase(" ").build());
+    }
+
+    @Test
+    void rejectsSearchFilterTemplateMissingThePlaceholder() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().searchFilterTemplate("(uid=alice)").build());
+    }
+
+    @Test
+    void defaultsBlankMemberOfAttributeToMemberOf() {
+        var config = validConfig().memberOfAttribute(" ").build();
+
+        assertThat(config.memberOfAttribute()).isEqualTo("memberOf");
+    }
+
+    @Test
+    void rejectsNonPositiveLookupTimeout() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().lookupTimeout(Duration.ZERO).build());
+    }
+
+    @Test
+    void rejectsNonPositiveExecutorPoolSize() {
+        assertThatIllegalArgumentException().isThrownBy(() -> validConfig().executorPoolSize(0).build());
+    }
+
+    private static ConfigBuilder validConfig() {
+        return new ConfigBuilder();
+    }
+
+    /** Hand-rolled builder so each test can override a single field without repeating the rest. */
+    private static final class ConfigBuilder {
+        private List<String> serverUris = List.of("ldap://directory.example.com:389");
+        private String bindDn = "cn=kroxylicious,dc=example,dc=com";
+        private String bindPassword = "secret";
+        private String searchBase = "ou=people,dc=example,dc=com";
+        private String searchFilterTemplate = "(uid={0})";
+        private String memberOfAttribute = "memberOf";
+        private Duration lookupTimeout = Duration.ofSeconds(5);
+        private int executorPoolSize = 4;
+
+        ConfigBuilder serverUris(List<String> serverUris) {
+            this.serverUris = serverUris;
+            return this;
+        }
+
+        ConfigBuilder bindDn(String bindDn) {
+            this.bindDn = bindDn;
+            return this;
+        }
+
+        ConfigBuilder searchBase(String searchBase) {
+            this.searchBase = searchBase;
+            return this;
+        }
+
+        ConfigBuilder searchFilterTemplate(String searchFilterTemplate) {
+            this.searchFilterTemplate = searchFilterTemplate;
+            return this;
+        }
+
+        ConfigBuilder memberOfAttribute(String memberOfAttribute) {
+            this.memberOfAttribute = memberOfAttribute;
+            return this;
+        }
+
+        ConfigBuilder lookupTimeout(Duration lookupTimeout) {
+            this.lookupTimeout = lookupTimeout;
+            return this;
+        }
+
+        ConfigBuilder executorPoolSize(int executorPoolSize) {
+            this.executorPoolSize = executorPoolSize;
+            return this;
+        }
+
+        LdapSaslSubjectBuilderService.Config build() {
+            return new LdapSaslSubjectBuilderService.Config(
+                    serverUris, bindDn, bindPassword, searchBase, searchFilterTemplate, memberOfAttribute, lookupTimeout, executorPoolSize);
+        }
+    }
+}
