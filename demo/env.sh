@@ -6,7 +6,7 @@ WORK="${DEMO_DIR}/.work"
 
 KROX_VERSION="${KROX_VERSION:-0.26.0}"
 KROX_HOME="${WORK}/kroxylicious-app-${KROX_VERSION}"
-PLUGIN_VERSION="${PLUGIN_VERSION:-0.1.0}"
+PLUGIN_VERSION="${PLUGIN_VERSION:-0.2.0}"
 PLUGIN_REPO="${PLUGIN_REPO:-robobario/ldap-principals-for-kroxylicious}"
 
 # release (default): download the plugin from its GitHub release.
