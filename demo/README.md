@@ -30,6 +30,19 @@ Result: alice produces and consumes; bob gets `TopicAuthorizationException`.
 `up.sh` is idempotent. `down.sh --purge` also deletes `.work/` (downloads and
 generated secrets).
 
+### Try it interactively
+
+With the stack up, open a producer and a consumer as a given user and fire off
+records by hand:
+
+```bash
+./demo/producer.sh alice   # type records, Enter to send, Ctrl-D to quit
+./demo/consumer.sh alice   # follows the topic, Ctrl-C to quit
+./demo/producer.sh bob     # same, but every send is denied
+```
+
+Both take a user name matching a file in `client/` (alice or bob).
+
 ## How it fits together
 
 ```
