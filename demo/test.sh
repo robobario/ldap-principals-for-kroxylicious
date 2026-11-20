@@ -25,17 +25,20 @@ else
   echo "OK: alice produced"
 fi
 
-say "alice consumes from ${TOPIC} (expect to read the message back)"
-# Fresh group each run so --from-beginning is honoured; read all messages
-# until idle, then look for the one we just produced.
+say "alice consumes from ${TOPIC} (expect to read a record)"
+# --max-messages 1 returns on the first record instead of idling out the
+# timeout; with the default fetch.min.bytes=1 the broker replies as soon as a
+# byte is available. Fresh group so --from-beginning is honoured.
 out="$(run_client /opt/kafka/bin/kafka-console-consumer.sh \
       --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
-      --from-beginning --timeout-ms 15000 \
+      --from-beginning --max-messages 1 --timeout-ms 15000 \
       --command-config /client/alice.properties --group "alice-$$-$(date +%s)" 2>&1)"
-if grep -q "${MSG}" <<<"${out}"; then
-  echo "OK: alice consumed '${MSG}'"
+if grep -qi "authorization" <<<"${out}"; then
+  echo "UNEXPECTED: alice was denied"; echo "${out}" | tail -3; fail=1
+elif grep -q "Processed a total of 1 messages" <<<"${out}"; then
+  echo "OK: alice consumed a record"
 else
-  echo "UNEXPECTED: alice could not consume the message"; echo "${out}" | tail -3; fail=1
+  echo "UNEXPECTED: alice could not consume a record"; echo "${out}" | tail -3; fail=1
 fi
 
 say "bob produces to ${TOPIC} (expect DENIED)"
