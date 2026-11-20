@@ -1,0 +1,49 @@
+management:
+  endpoints:
+    prometheus: {}
+clusterDefinitions:
+  - name: demo-cluster
+    bootstrapServers: __KAFKA_BOOTSTRAP__
+virtualClusters:
+  - name: demo
+    target:
+      cluster: demo-cluster
+    gateways:
+      - name: mygateway
+        portIdentifiesNode:
+          bootstrapAddress: __PROXY_BOOTSTRAP__
+filterDefinitions:
+  - name: saslTermination
+    type: SaslTermination
+    config:
+      mechanisms:
+        - mechanism: SCRAM-SHA-256
+          credentialStore: io.kroxylicious.scram.credentialstore.file.ScramCredentialFileService
+          credentialStoreConfig:
+            file: __WORK__/secrets/scram-credentials.p12
+            filePassword:
+              passwordFile: __WORK__/secrets/credstore.pw
+      subjectBuilder: io.github.robobario.ldapprincipals.LdapSaslSubjectBuilderService
+      subjectBuilderConfig:
+        servers:
+          - uri: ldap://__LDAP_HOSTPORT__
+        bindDn: cn=admin,dc=example,dc=com
+        bindPassword:
+          passwordFile: __WORK__/secrets/ldap-bind.pw
+        searchBase: ou=people,dc=example,dc=com
+        searchFilterTemplate: (uid={0})
+        memberOfAttribute: memberOf
+        roleNameExtractionPattern: cn=([^,]+),.*
+        onLookupFailure: fail
+        lookupTimeout: 5s
+        executorPoolSize: 4
+        allowPlaintextLdap: true
+  - name: authorization
+    type: Authorization
+    config:
+      authorizer: io.kroxylicious.authorizer.provider.acl.AclAuthorizerService
+      authorizerConfig:
+        aclFile: __DEMO__/config/acl-rules.txt
+defaultFilters:
+  - saslTermination
+  - authorization

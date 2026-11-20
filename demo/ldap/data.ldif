@@ -1,0 +1,31 @@
+dn: ou=people,dc=example,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=alice,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice
+sn: Alice
+userPassword: alice-secret-2026
+
+dn: uid=bob,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: bob
+cn: Bob
+sn: Bob
+userPassword: bob-secret-2026
+
+dn: cn=role-a,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: role-a
+member: uid=alice,ou=people,dc=example,dc=com
+
+dn: cn=role-b,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: role-b
+member: uid=bob,ou=people,dc=example,dc=com
