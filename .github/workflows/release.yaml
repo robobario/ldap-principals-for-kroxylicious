@@ -90,4 +90,6 @@ jobs:
           gh release create "v${{ inputs.release-version }}" \
             --title "${{ inputs.release-version }}" \
             --generate-notes \
-            --target "${{ env.RELEASE_SHA }}"
+            --target "${{ env.RELEASE_SHA }}" \
+            "target/ldap-principals-for-kroxylicious-${{ inputs.release-version }}-distribution.zip" \
+            "target/ldap-principals-for-kroxylicious-${{ inputs.release-version }}-distribution.zip.asc"
