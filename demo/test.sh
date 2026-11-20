@@ -17,8 +17,8 @@ fail=0
 say "alice produces to ${TOPIC} (expect SUCCESS)"
 out="$(echo "${MSG}" | run_client /opt/kafka/bin/kafka-console-producer.sh \
       --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
-      --producer.config /client/alice.properties \
-      --producer-property enable.idempotence=false --producer-property acks=1 2>&1)"
+      --command-config /client/alice.properties \
+      --command-property enable.idempotence=false --command-property acks=1 2>&1)"
 if grep -qi "authorization" <<<"${out}"; then
   echo "UNEXPECTED: alice was denied"; echo "${out}"; fail=1
 else
@@ -31,7 +31,7 @@ say "alice consumes from ${TOPIC} (expect to read the message back)"
 out="$(run_client /opt/kafka/bin/kafka-console-consumer.sh \
       --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
       --from-beginning --timeout-ms 15000 \
-      --consumer.config /client/alice.properties --group "alice-$$-$(date +%s)" 2>&1)"
+      --command-config /client/alice.properties --group "alice-$$-$(date +%s)" 2>&1)"
 if grep -q "${MSG}" <<<"${out}"; then
   echo "OK: alice consumed '${MSG}'"
 else
@@ -41,8 +41,8 @@ fi
 say "bob produces to ${TOPIC} (expect DENIED)"
 out="$(echo "hello-from-bob" | run_client /opt/kafka/bin/kafka-console-producer.sh \
       --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
-      --producer.config /client/bob.properties \
-      --producer-property enable.idempotence=false --producer-property acks=1 2>&1)"
+      --command-config /client/bob.properties \
+      --command-property enable.idempotence=false --command-property acks=1 2>&1)"
 if grep -qi "TOPIC_AUTHORIZATION_FAILED\|TopicAuthorizationException" <<<"${out}"; then
   echo "OK: bob was denied (TopicAuthorizationException)"
 else

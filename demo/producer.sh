@@ -13,5 +13,5 @@ say "producer for '${USER_NAME}' -> ${TOPIC} (type records, Ctrl-D to quit)"
 exec podman run --rm -it --network host -v "${DEMO_DIR}/client:/client:z" "${KAFKA_IMAGE}" \
   /opt/kafka/bin/kafka-console-producer.sh \
   --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
-  --producer.config "/client/${USER_NAME}.properties" \
-  --producer-property enable.idempotence=false --producer-property acks=1
+  --command-config "/client/${USER_NAME}.properties" \
+  --command-property enable.idempotence=false --command-property acks=1
