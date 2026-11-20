@@ -36,6 +36,15 @@ Set `CONTAINER_ENGINE=docker` to use Docker instead of the default podman:
 CONTAINER_ENGINE=docker ./demo/up.sh
 ```
 
+By default the plugin comes from its GitHub release. Set `PLUGIN_SOURCE=local`
+to build it from this checkout (`mvn -DskipTests package`) and install the
+produced distribution zip instead. This needs Maven and a JDK, and rebuilds on
+every run:
+
+```bash
+PLUGIN_SOURCE=local ./demo/up.sh
+```
+
 ### Try it interactively
 
 With the stack up, open a producer and a consumer as a given user and fire off

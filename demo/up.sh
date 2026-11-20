@@ -13,7 +13,7 @@ container_running() { "${CONTAINER_ENGINE}" inspect "$1" >/dev/null 2>&1; }
 mkdir -p "${WORK}/secrets"
 
 # ---------------------------------------------------------------------------
-say "Downloading kroxylicious ${KROX_VERSION} and the LDAP plugin ${PLUGIN_VERSION}"
+say "Downloading kroxylicious ${KROX_VERSION}"
 KROX_ZIP="${WORK}/kroxylicious-app-${KROX_VERSION}-bin.zip"
 if [ ! -d "${KROX_HOME}" ]; then
   [ -f "${KROX_ZIP}" ] || gh release download "v${KROX_VERSION}" --repo kroxylicious/kroxylicious \
@@ -22,11 +22,24 @@ if [ ! -d "${KROX_HOME}" ]; then
 fi
 
 PLUGIN_DIR="${KROX_HOME}/classpath-plugins/ldap-principals"
-if [ ! -d "${PLUGIN_DIR}" ]; then
+mkdir -p "${KROX_HOME}/classpath-plugins"
+if [ "${PLUGIN_SOURCE}" = "local" ]; then
+  say "Building the LDAP plugin from this checkout (PLUGIN_SOURCE=local)"
+  command -v mvn >/dev/null || die "mvn not found; needed for PLUGIN_SOURCE=local"
+  MVN_LOG="$(mktemp /tmp/demo-plugin-build-XXXXXX.log)"
+  if ! ( cd "${REPO_ROOT}" && mvn -q -DskipTests clean package ) >"${MVN_LOG}" 2>&1; then
+    tail -30 "${MVN_LOG}"; die "plugin build failed, see ${MVN_LOG}"
+  fi
+  PLUGIN_ZIP="$(ls -t "${REPO_ROOT}"/target/*-distribution.zip 2>/dev/null | head -1)"
+  [ -n "${PLUGIN_ZIP}" ] || die "no distribution zip under ${REPO_ROOT}/target (build the assembly?)"
+  rm -rf "${PLUGIN_DIR}"
+  unzip -q -o "${PLUGIN_ZIP}" -d "${KROX_HOME}/classpath-plugins"
+  echo "installed plugin from local build: ${PLUGIN_ZIP}"
+elif [ ! -d "${PLUGIN_DIR}" ]; then
+  say "Downloading the LDAP plugin ${PLUGIN_VERSION}"
   PLUGIN_ZIP="${WORK}/ldap-principals-${PLUGIN_VERSION}-distribution.zip"
   [ -f "${PLUGIN_ZIP}" ] || gh release download "v${PLUGIN_VERSION}" --repo "${PLUGIN_REPO}" \
     --pattern "*-${PLUGIN_VERSION}-distribution.zip" --output "${PLUGIN_ZIP}"
-  mkdir -p "${KROX_HOME}/classpath-plugins"
   unzip -q -o "${PLUGIN_ZIP}" -d "${KROX_HOME}/classpath-plugins"
 fi
 

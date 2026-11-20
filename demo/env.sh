@@ -1,12 +1,17 @@
 # Shared configuration for the demo scripts. Sourced, not executed.
 
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${DEMO_DIR}/.." && pwd)"
 WORK="${DEMO_DIR}/.work"
 
 KROX_VERSION="${KROX_VERSION:-0.26.0}"
 KROX_HOME="${WORK}/kroxylicious-app-${KROX_VERSION}"
 PLUGIN_VERSION="${PLUGIN_VERSION:-0.1.0}"
 PLUGIN_REPO="${PLUGIN_REPO:-robobario/ldap-principals-for-kroxylicious}"
+
+# release (default): download the plugin from its GitHub release.
+# local: build the plugin from this checkout and use the produced distribution zip.
+PLUGIN_SOURCE="${PLUGIN_SOURCE:-release}"
 
 CONTAINER_ENGINE="${CONTAINER_ENGINE:-podman}"
 
