@@ -1,21 +1,23 @@
 package io.github.robobario.ldapprincipals;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import java.security.GeneralSecurityException;
 import java.util.List;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 
-import org.apache.directory.api.ldap.model.cursor.CursorException;
-import org.apache.directory.api.ldap.model.cursor.EntryCursor;
-import org.apache.directory.api.ldap.model.entry.Attribute;
-import org.apache.directory.api.ldap.model.entry.Entry;
-import org.apache.directory.api.ldap.model.entry.Value;
-import org.apache.directory.api.ldap.model.exception.LdapException;
-import org.apache.directory.api.ldap.model.filter.FilterEncoder;
-import org.apache.directory.api.ldap.model.message.SearchScope;
-import org.apache.directory.ldap.client.api.LdapConnectionConfig;
-import org.apache.directory.ldap.client.api.LdapNetworkConnection;
+import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.Filter;
+import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPConnectionOptions;
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.SearchResult;
+import com.unboundid.ldap.sdk.SearchResultEntry;
+import com.unboundid.ldap.sdk.SearchScope;
+import com.unboundid.ldap.sdk.extensions.StartTLSExtendedRequest;
+import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
+import com.unboundid.util.ssl.SSLUtil;
 
 import io.kroxylicious.proxy.config.secret.PasswordProvider;
 
@@ -51,7 +53,7 @@ final class LdapRoleLookup implements RoleLookup {
             try {
                 return lookupRoles(server, identity);
             }
-            catch (LdapException | CursorException | IOException e) {
+            catch (LDAPException | GeneralSecurityException e) {
                 lastFailure = e;
             }
         }
@@ -59,40 +61,41 @@ final class LdapRoleLookup implements RoleLookup {
                 "Unable to look up roles for identity '" + identity + "': no configured LDAP server could be reached", lastFailure);
     }
 
-    private List<String> lookupRoles(Server server, String identity) throws LdapException, CursorException, IOException {
-        LdapConnectionConfig connectionConfig = new LdapConnectionConfig();
-        connectionConfig.setLdapHost(server.host());
-        connectionConfig.setLdapPort(server.port());
-        connectionConfig.setTimeout(timeoutMillis);
-        connectionConfig.setUseSsl(server.useSsl());
-        connectionConfig.setUseTls(server.startTls());
-        connectionConfig.setSslEndpointIdentificationAlgorithm("LDAPS");
-        if (server.trustManagers() != null) {
-            connectionConfig.setTrustManagers(server.trustManagers());
+    private List<String> lookupRoles(Server server, String identity) throws LDAPException, GeneralSecurityException {
+        LDAPConnectionOptions options = new LDAPConnectionOptions();
+        options.setConnectTimeoutMillis((int) Math.min(timeoutMillis, Integer.MAX_VALUE));
+        options.setResponseTimeoutMillis(timeoutMillis);
+
+        SocketFactory socketFactory = null;
+        if (server.useSsl()) {
+            options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
+            socketFactory = new SSLUtil(server.trustManagers()).createSSLSocketFactory();
         }
-        try (LdapNetworkConnection connection = new LdapNetworkConnection(connectionConfig)) {
-            connection.bind(bindDn, bindPassword.getProvidedPassword());
-            String filter = searchFilterTemplate.replace(
-                    LdapRoleLookupConfig.IDENTITY_PLACEHOLDER, FilterEncoder.encodeFilterValue(identity));
-            try (EntryCursor cursor = connection.search(searchBase, filter, SearchScope.SUBTREE, memberOfAttribute)) {
-                if (!cursor.next()) {
-                    return List.of();
-                }
-                Entry entry = cursor.get();
-                if (cursor.next()) {
-                    throw new LdapRoleLookupException(
-                            "Search filter matched more than one entry for identity '" + identity + "'", null);
-                }
-                Attribute attribute = entry.get(memberOfAttribute);
-                if (attribute == null) {
-                    return List.of();
-                }
-                List<String> roles = new ArrayList<>();
-                for (Value value : attribute) {
-                    roles.add(value.getString());
-                }
-                return roles;
+
+        try (LDAPConnection connection = socketFactory == null
+                ? new LDAPConnection(options, server.host(), server.port())
+                : new LDAPConnection(socketFactory, options, server.host(), server.port())) {
+
+            if (server.startTls()) {
+                SSLContext sslContext = new SSLUtil(server.trustManagers()).createSSLContext();
+                connection.processExtendedOperation(new StartTLSExtendedRequest(sslContext));
             }
+            connection.bind(bindDn, bindPassword.getProvidedPassword());
+
+            String filter = searchFilterTemplate.replace(
+                    LdapRoleLookupConfig.IDENTITY_PLACEHOLDER, Filter.encodeValue(identity));
+            SearchResult result = connection.search(searchBase, SearchScope.SUB, filter, memberOfAttribute);
+
+            List<SearchResultEntry> entries = result.getSearchEntries();
+            if (entries.isEmpty()) {
+                return List.of();
+            }
+            if (entries.size() > 1) {
+                throw new LdapRoleLookupException(
+                        "Search filter matched more than one entry for identity '" + identity + "'", null);
+            }
+            Attribute attribute = entries.get(0).getAttribute(memberOfAttribute);
+            return attribute == null ? List.of() : List.of(attribute.getValues());
         }
     }
 
