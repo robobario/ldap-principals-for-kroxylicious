@@ -6,7 +6,7 @@
 
     <groupId>io.github.robobario</groupId>
     <artifactId>ldap-principals-for-kroxylicious</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0</version>
     <packaging>jar</packaging>
 
     <name>ldap-principals-for-kroxylicious</name>
@@ -40,7 +40,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <project.build.outputTimestamp>2026-11-20T01:32:47Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-11-20T03:41:38Z</project.build.outputTimestamp>
 
         <java.version>21</java.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
