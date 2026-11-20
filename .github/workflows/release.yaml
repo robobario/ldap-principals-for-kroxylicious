@@ -9,6 +9,8 @@ name: Release
 #   CENTRAL_TOKEN_PASSWORD - Sonatype Central user token password
 #   GPG_PRIVATE_KEY        - Armoured private key used to sign release artifacts
 #   GPG_PASSPHRASE          - Passphrase for GPG_PRIVATE_KEY
+#   RELEASE_APP_ID          - GitHub App ID authorised to push to this repo
+#   RELEASE_APP_PRIVATE_KEY - PEM private key for the GitHub App
 
 on:
   workflow_dispatch:
@@ -31,10 +33,18 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.branch }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git identity
         run: |
@@ -85,7 +95,7 @@ jobs:
 
       - name: Create GitHub release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh release create "v${{ inputs.release-version }}" \
             --title "${{ inputs.release-version }}" \
