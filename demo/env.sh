@@ -8,6 +8,8 @@ KROX_HOME="${WORK}/kroxylicious-app-${KROX_VERSION}"
 PLUGIN_VERSION="${PLUGIN_VERSION:-0.1.0}"
 PLUGIN_REPO="${PLUGIN_REPO:-robobario/ldap-principals-for-kroxylicious}"
 
+CONTAINER_ENGINE="${CONTAINER_ENGINE:-podman}"
+
 KAFKA_IMAGE="${KAFKA_IMAGE:-docker.io/apache/kafka:4.4.0}"
 LDAP_IMAGE="${LDAP_IMAGE:-docker.io/osixia/openldap:1.5.0}"
 

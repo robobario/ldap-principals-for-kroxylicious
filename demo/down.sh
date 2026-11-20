@@ -10,7 +10,7 @@ if [ -f "${WORK}/kroxylicious.pid" ]; then
   rm -f "${WORK}/kroxylicious.pid"
 fi
 
-podman rm -f "${KAFKA_CONTAINER}" "${LDAP_CONTAINER}" >/dev/null 2>&1 && echo "removed containers"
+"${CONTAINER_ENGINE}" rm -f "${KAFKA_CONTAINER}" "${LDAP_CONTAINER}" >/dev/null 2>&1 && echo "removed containers"
 
 if [ "${1:-}" = "--purge" ]; then
   rm -rf "${WORK}"

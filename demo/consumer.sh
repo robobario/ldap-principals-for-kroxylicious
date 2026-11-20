@@ -10,7 +10,7 @@ USER_NAME="${1:-}"
 [ -f "${DEMO_DIR}/client/${USER_NAME}.properties" ] || die "no client config for '${USER_NAME}' (demo/client/${USER_NAME}.properties)"
 
 say "consumer for '${USER_NAME}' <- ${TOPIC} (Ctrl-C to quit)"
-exec podman run --rm -it --network host -v "${DEMO_DIR}/client:/client:z" "${KAFKA_IMAGE}" \
+exec "${CONTAINER_ENGINE}" run --rm -it --network host -v "${DEMO_DIR}/client:/client:z" "${KAFKA_IMAGE}" \
   /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server "${PROXY_BOOTSTRAP}" --topic "${TOPIC}" \
   --from-beginning --command-config "/client/${USER_NAME}.properties" \

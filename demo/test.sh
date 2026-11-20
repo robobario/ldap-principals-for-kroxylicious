@@ -3,12 +3,12 @@
 #   alice (LDAP group role-a -> Role[role-a]) can produce and consume demo-topic
 #   bob   (LDAP group role-b -> Role[role-b]) is denied by the ACL
 # Note: no `pipefail` on purpose; `grep -q` closing a pipe early would otherwise
-# surface as a SIGPIPE failure of the upstream podman command.
+# surface as a SIGPIPE failure of the upstream container command.
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 run_client() {
-  podman run --rm -i --network host -v "${DEMO_DIR}/client:/client:z" "${KAFKA_IMAGE}" "$@"
+  "${CONTAINER_ENGINE}" run --rm -i --network host -v "${DEMO_DIR}/client:/client:z" "${KAFKA_IMAGE}" "$@"
 }
 
 MSG="hello-from-alice-$(date +%s)"

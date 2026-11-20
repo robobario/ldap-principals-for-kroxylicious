@@ -14,7 +14,7 @@ Result: alice produces and consumes; bob gets `TopicAuthorizationException`.
 
 ## Prerequisites
 
-- `podman`
+- `podman` (or Docker, via `CONTAINER_ENGINE=docker`)
 - `gh` (GitHub CLI, authenticated) to download the release artifacts
 - Java 17+ on the host (kroxylicious runs as a host process)
 - Free host ports 9092 (Kafka), 9192 (proxy), 1389 (LDAP), 9190 (proxy management)
@@ -27,8 +27,14 @@ Result: alice produces and consumes; bob gets `TopicAuthorizationException`.
 ./demo/down.sh    # stop the proxy and remove the containers
 ```
 
-`up.sh` is idempotent. `down.sh --purge` also deletes `.work/` (downloads and
-generated secrets).
+`up.sh` is idempotent and prints the path of the rendered proxy config.
+`down.sh --purge` also deletes `.work/` (downloads and generated secrets).
+
+Set `CONTAINER_ENGINE=docker` to use Docker instead of the default podman:
+
+```bash
+CONTAINER_ENGINE=docker ./demo/up.sh
+```
 
 ### Try it interactively
 

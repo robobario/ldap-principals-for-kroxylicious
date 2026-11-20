@@ -5,8 +5,10 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-command -v podman >/dev/null || die "podman not found"
+command -v "${CONTAINER_ENGINE}" >/dev/null || die "${CONTAINER_ENGINE} not found (set CONTAINER_ENGINE to override)"
 command -v gh >/dev/null || die "gh (GitHub CLI) not found; needed to download releases"
+
+container_running() { "${CONTAINER_ENGINE}" inspect "$1" >/dev/null 2>&1; }
 
 mkdir -p "${WORK}/secrets"
 
@@ -30,36 +32,36 @@ fi
 
 # ---------------------------------------------------------------------------
 say "Starting Kafka (${KAFKA_IMAGE})"
-if ! podman container exists "${KAFKA_CONTAINER}"; then
-  podman run -d --name "${KAFKA_CONTAINER}" -p "${KAFKA_PORT}:9092" "${KAFKA_IMAGE}" >/dev/null
+if ! container_running "${KAFKA_CONTAINER}"; then
+  "${CONTAINER_ENGINE}" run -d --name "${KAFKA_CONTAINER}" -p "${KAFKA_PORT}:9092" "${KAFKA_IMAGE}" >/dev/null
 fi
-wait_for "kafka" 60 podman exec "${KAFKA_CONTAINER}" \
+wait_for "kafka" 60 "${CONTAINER_ENGINE}" exec "${KAFKA_CONTAINER}" \
   /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
 say "Creating topic '${TOPIC}'"
-podman exec "${KAFKA_CONTAINER}" /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+"${CONTAINER_ENGINE}" exec "${KAFKA_CONTAINER}" /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
   --create --if-not-exists --topic "${TOPIC}" --partitions 1 --replication-factor 1 >/dev/null
 
 # ---------------------------------------------------------------------------
 say "Starting LDAP (${LDAP_IMAGE})"
-if ! podman container exists "${LDAP_CONTAINER}"; then
-  podman run -d --name "${LDAP_CONTAINER}" \
+if ! container_running "${LDAP_CONTAINER}"; then
+  "${CONTAINER_ENGINE}" run -d --name "${LDAP_CONTAINER}" \
     -e LDAP_ORGANISATION="Demo" -e LDAP_DOMAIN="example.com" \
     -e LDAP_ADMIN_PASSWORD="${LDAP_ADMIN_PW}" \
     -p "${LDAP_PORT}:389" "${LDAP_IMAGE}" >/dev/null
 fi
-wait_for "ldap" 60 podman exec "${LDAP_CONTAINER}" \
+wait_for "ldap" 60 "${CONTAINER_ENGINE}" exec "${LDAP_CONTAINER}" \
   ldapsearch -x -H ldap://localhost -b dc=example,dc=com -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PW}"
 
 say "Enabling memberOf overlay and loading users/groups"
 # rc 68 == entry already exists, so re-running up.sh is a no-op here.
-podman exec -i "${LDAP_CONTAINER}" ldapadd -Y EXTERNAL -H ldapi:/// \
+"${CONTAINER_ENGINE}" exec -i "${LDAP_CONTAINER}" ldapadd -Y EXTERNAL -H ldapi:/// \
   < "${DEMO_DIR}/ldap/memberof-overlay.ldif" >/dev/null 2>&1 || [ $? -eq 68 ]
-podman exec -i "${LDAP_CONTAINER}" ldapadd -x -H ldap://localhost -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PW}" \
+"${CONTAINER_ENGINE}" exec -i "${LDAP_CONTAINER}" ldapadd -x -H ldap://localhost -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PW}" \
   < "${DEMO_DIR}/ldap/data.ldif" >/dev/null 2>&1 || [ $? -eq 68 ]
 
 echo "LDAP group membership:"
-podman exec "${LDAP_CONTAINER}" ldapsearch -x -H ldap://localhost -b "ou=people,dc=example,dc=com" \
+"${CONTAINER_ENGINE}" exec "${LDAP_CONTAINER}" ldapsearch -x -H ldap://localhost -b "ou=people,dc=example,dc=com" \
   -D "${LDAP_ADMIN_DN}" -w "${LDAP_ADMIN_PW}" -LLL "(uid=*)" uid memberOf
 
 # ---------------------------------------------------------------------------
@@ -85,6 +87,7 @@ sed -e "s#__WORK__#${WORK}#g" \
     -e "s#__PROXY_BOOTSTRAP__#${PROXY_BOOTSTRAP}#g" \
     -e "s#__LDAP_HOSTPORT__#${LDAP_HOSTPORT}#g" \
     "${DEMO_DIR}/config/kroxylicious-config.yaml.template" > "${WORK}/kroxylicious-config.yaml"
+echo "rendered proxy config: ${WORK}/kroxylicious-config.yaml"
 
 say "Starting kroxylicious"
 if [ -f "${WORK}/kroxylicious.pid" ] && kill -0 "$(cat "${WORK}/kroxylicious.pid")" 2>/dev/null; then
