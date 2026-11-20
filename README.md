@@ -16,6 +16,13 @@ extension points from kroxylicious-api. See [SPEC.md](SPEC.md) for the full desi
 - Maps each raw value (typically a group DN) to a role name with a configurable regex.
 - Builds a `Subject` carrying the original `User` plus a `Role` per mapped group.
 
+## Demo
+
+[demo/](demo/) is a runnable end-to-end example: Kafka, an LDAP directory with
+two users in different groups, and kroxylicious with SASL termination, this
+plugin, and an ACL authorizer. It shows one user's role granted access to a
+topic while the other is denied. Run `./demo/up.sh && ./demo/test.sh`.
+
 ## Builders
 
 - `LdapSaslSubjectBuilderService` — for SASL. Used by a SASL-terminating or

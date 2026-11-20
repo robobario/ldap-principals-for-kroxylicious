@@ -1,0 +1,11 @@
+// Role principals come from the LDAP plugin (io.github.robobario.ldapprincipals.Role).
+// Kafka resource types come from the kroxylicious authorization filter.
+from io.github.robobario.ldapprincipals import Role;
+from io.kroxylicious.filter.authorization import TopicResource as Topic, GroupResource as Group;
+
+// role-a may do anything with demo-topic and use any consumer group.
+allow Role with name = "role-a" to * Topic with name = "demo-topic";
+allow Role with name = "role-a" to * Group with name *;
+
+// Everyone else (including role-b) is denied by default.
+otherwise deny;
